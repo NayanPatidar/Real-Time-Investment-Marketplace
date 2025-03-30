@@ -45,3 +45,16 @@ export function logout() {
   localStorage.removeItem("token");
   window.location.href = "/auth";
 }
+
+export function getUser() {
+  const token = localStorage.getItem("token");
+  if (!token) return null;
+
+  try {
+    const decoded = jwtDecode<JwtPayload>(token);
+    return decoded || null;
+  } catch (error) {
+    console.error("Failed to decode token:", error);
+    return null;
+  }
+}

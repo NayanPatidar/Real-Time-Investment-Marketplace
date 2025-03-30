@@ -20,6 +20,7 @@ interface Proposal {
   status: "UNDER_REVIEW" | "APPROVED" | "NEGOTIATING" | "FUNDED" | "REJECTED";
   createdAt: string;
   creatorName: string;
+  investorContribution: number;
 }
 
 export default function InvestorDashboard() {
@@ -37,7 +38,7 @@ export default function InvestorDashboard() {
   const [stats, setStats] = useState({
     totalInvested: 0,
     activeInvestments: 0,
-    averageReturn: 15.2, // Mock data
+    averageReturn: 15.2,
   });
 
   useEffect(() => {
@@ -63,7 +64,6 @@ export default function InvestorDashboard() {
   }, []);
 
   useEffect(() => {
-    // Filter proposals based on search term and status filter
     const results = proposals.filter((proposal) => {
       const matchesSearch =
         proposal.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -95,17 +95,17 @@ export default function InvestorDashboard() {
     try {
       const payload = {
         proposalId: selectedProposal.id,
-        amount: parseFloat(investmentAmount)
+        amount: parseFloat(investmentAmount),
       };
 
       await investInProposal(payload);
 
       // Update the proposal in the list
-      const updatedProposals = proposals.map(p => {
+      const updatedProposals = proposals.map((p) => {
         if (p.id === selectedProposal.id) {
           return {
             ...p,
-            currentFunding: p.currentFunding + parseFloat(investmentAmount)
+            currentFunding: p.currentFunding + parseFloat(investmentAmount),
           };
         }
         return p;
@@ -241,7 +241,7 @@ export default function InvestorDashboard() {
                 <div
                   key={proposal.id}
                   className="p-6 hover:bg-gray-50 transition-colors cursor-pointer"
-                  onClick={() => navigate(`/proposals/${proposal.id}`)}
+                  onClick={() => navigate(`/investor/proposal/${proposal.id}`)}
                 >
                   <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                     <div className="flex-1">
@@ -285,18 +285,42 @@ export default function InvestorDashboard() {
                         </p>
                       </div>
 
-                      <div className="w-full bg-gray-200 rounded-full h-2.5">
+                      <div className="w-full bg-gray-200 rounded-full h-2.5 relative overflow-hidden">
+                        {/* Total funding progress */}
                         <div
-                          className="bg-indigo-600 h-2.5 rounded-full"
+                          className="bg-indigo-600 h-full absolute left-0 top-0"
                           style={{
                             width: `${Math.min(
                               100,
                               (proposal.currentFunding / proposal.fundingGoal) *
                                 100
                             )}%`,
+                            zIndex: 10,
                           }}
-                        ></div>
+                        />
+
+                        {/* Your contribution */}
+                        {proposal?.investorContribution > 0 && (
+                          <div
+                            className="bg-green-500 h-full absolute left-0 top-0"
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                (proposal.investorContribution /
+                                  proposal.fundingGoal) *
+                                  100
+                              )}%`,
+                              zIndex: 20,
+                            }}
+                          />
+                        )}
                       </div>
+                      {proposal.investorContribution > 0 && (
+                        <p className="text-sm text-green-600 mt-1 font-medium">
+                          You invested $
+                          {proposal.investorContribution.toLocaleString()}
+                        </p>
+                      )}
 
                       <button
                         onClick={(e) => {

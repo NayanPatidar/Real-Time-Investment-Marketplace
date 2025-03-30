@@ -2,6 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbars/Navbar";
 import { getProposalById } from "@/api/proposal";
+import FounderCommentsSection from "@/components/FounderCommentsSection";
 
 interface Proposal {
   id: string;
@@ -116,9 +117,7 @@ export default function ProposalDetail() {
             <h2 className="text-xl font-semibold text-gray-800 mb-2">
               Comments
             </h2>
-            <p className="text-sm text-gray-500 italic">
-              Comments feature coming soon...
-            </p>
+            <FounderCommentsSection proposalId={proposal.id} />
           </div>
         </section>
       </main>
