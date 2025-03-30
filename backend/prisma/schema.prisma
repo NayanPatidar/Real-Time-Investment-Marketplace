@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int       @id @default(autoincrement())
+  email     String    @unique
+  password  String
+  role      Role
+  createdAt DateTime  @default(now())
+
+  proposals Proposal[]
+  sentMessages     Message[] @relation("Sender")
+  receivedMessages Message[] @relation("Receiver")
+  comments         Comment[]
+  acceptedInvestments AcceptedInvestor[] @relation("InvestorUser")
+  totalInvestment    Float     @default(0)
+  activeInvestments  Int       @default(0)
+}
+
+
+model Proposal {
+  id                Int                @id @default(autoincrement())
+  founderId         Int
+  founder           User               @relation(fields: [founderId], references: [id])
+  title             String
+  description       String
+  fundingGoal       Float
+  currentFunding    Float              @default(0) 
+  status            Status             @default(UNDER_REVIEW)
+  createdAt         DateTime           @default(now())
+  messages          Message[]
+  comments          Comment[]
+  acceptedInvestors AcceptedInvestor[] @relation("InvestorProposal")
+}
+
+model AcceptedInvestor {
+  id          Int       @id @default(autoincrement())
+  proposalId  Int
+  investorId  Int
+  contribution Float    @default(0)
+  createdAt   DateTime  @default(now())
+
+  investor    User      @relation("InvestorUser", fields: [investorId], references: [id])
+  proposal    Proposal  @relation("InvestorProposal", fields: [proposalId], references: [id])
+}
+
+model Message {
+  id         Int      @id @default(autoincrement())
+  senderId   Int
+  receiverId Int
+  proposalId Int
+  content    String
+  timestamp  DateTime @default(now())
+  read       Boolean  @default(false)
+  sender     User     @relation("Sender", fields: [senderId], references: [id])
+  receiver   User     @relation("Receiver", fields: [receiverId], references: [id])
+  proposal   Proposal @relation(fields: [proposalId], references: [id])
+}
+
+model Comment {
+  id         Int      @id @default(autoincrement())
+  proposalId Int
+  userId     Int
+  content    String
+  createdAt  DateTime @default(now())
+  proposal   Proposal @relation(fields: [proposalId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
+}
+
+enum Role {
+  FOUNDER
+  INVESTOR
+  ADMIN
+}
+
+enum Status {
+  UNDER_REVIEW
+  APPROVED
+  NEGOTIATING
+  FUNDED
+  REJECTED
+}
