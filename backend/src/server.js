@@ -5,6 +5,7 @@ const cors = require("cors");
 const prisma = require("./config/prisma");
 const authRoutes = require("./routes/auth");
 const proposalRoutes = require("./routes/proposals");
+const notificationRoutes = require("./routes/notificationRoutes");
 const setupChat = require("./sockets/chat");
 require("dotenv").config();
 
@@ -18,12 +19,11 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-const io = new Server(server, { cors: { origin: "*" } }); // Adjust CORS in production
+const io = new Server(server, { cors: { origin: "*" } });
 
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// Pass io to routes
 app.use((req, res, next) => {
   req.io = io;
   next();
@@ -31,6 +31,7 @@ app.use((req, res, next) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/proposals", proposalRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 setupChat(io);
 

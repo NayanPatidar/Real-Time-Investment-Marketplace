@@ -9,25 +9,33 @@ import ProposalDetail from "./pages/ProposalDetail";
 import InvestorDashboard from "./pages/InvestorDashboard";
 import InvestorProposalDetail from "./pages/InvestorProposalDetail";
 import { AuthProvider } from "./context/AuthProvider";
+import { Toaster } from "sonner";
+import { SocketProvider } from "./context/SocketRef";
 
 function App() {
   return (
     <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
       <AuthProvider>
-        <Router>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/auth" element={<AuthPage />} />
-            <Route path="/proposal/new" element={<NewProposalPage />} />
-            <Route path="/founder/dashboard" element={<FounderDashboard />} />
-            <Route path="/investor/dashboard" element={<InvestorDashboard />} />
-            <Route path="/proposals/:id" element={<ProposalDetail />} />
-            <Route
-              path="/investor/proposal/:id"
-              element={<InvestorProposalDetail />}
-            />
-          </Routes>
-        </Router>
+        <SocketProvider>
+          <Router>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/auth" element={<AuthPage />} />
+              <Route path="/proposal/new" element={<NewProposalPage />} />
+              <Route path="/founder/dashboard" element={<FounderDashboard />} />
+              <Route
+                path="/investor/dashboard"
+                element={<InvestorDashboard />}
+              />
+              <Route path="/proposals/:id" element={<ProposalDetail />} />
+              <Route
+                path="/investor/proposal/:id"
+                element={<InvestorProposalDetail />}
+              />
+            </Routes>
+          </Router>
+          <Toaster />
+        </SocketProvider>
       </AuthProvider>
     </ThemeProvider>
   );

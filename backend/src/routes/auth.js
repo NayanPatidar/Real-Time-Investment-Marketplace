@@ -8,14 +8,14 @@ const router = express.Router();
 const validateAuth = (req, res, next) => {
   const { email, password, role } = req.body;
   console.log("Request body:", req.body);
-  
+
   if (
     !email ||
     !password ||
     (req.path === "/signup" && !["FOUNDER", "INVESTOR", "ADMIN"].includes(role))
   ) {
     console.log("Missing fields in request body");
-    
+
     return res.status(400).json({ message: "Missing Fields" });
   }
   next();
@@ -33,7 +33,7 @@ router.post("/signup", validateAuth, async (req, res) => {
       data: { email, password: hashedPassword, role, name },
     });
     const token = jwt.sign(
-      { id: user.id, role: user.role },
+      { id: user.id, role: user.role, name: user.name },
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
     );
@@ -52,7 +52,7 @@ router.post("/login", validateAuth, async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
     const token = jwt.sign(
-      { id: user.id, role: user.role },
+      { id: user.id, role: user.role, name: user.name },
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
     );

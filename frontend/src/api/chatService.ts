@@ -1,4 +1,5 @@
 import { io, Socket } from "socket.io-client";
+import instance from "./axios";
 
 interface MessagePayload {
   proposalId: number | string;
@@ -9,6 +10,7 @@ interface MessagePayload {
 interface ReadMessagePayload {
   messageId: number;
   proposalId: number | string;
+  receiverId: number;
 }
 
 let socket: Socket | null = null;
@@ -30,12 +32,15 @@ export const initializeSocket = (token: string): Socket => {
   return socket;
 };
 
-export const joinProposalChat = (proposalId: number | string) => {
+export const joinProposalChat = (
+  proposalId: number | string,
+  receiverId: number | string
+) => {
   if (!socket || !socket.connected) {
     throw new Error("Socket not connected. Call initializeSocket first.");
   }
 
-  socket.emit("joinProposal", proposalId);
+  socket.emit("joinProposal", { proposalId, receiverId });
 };
 
 export const sendMessage = ({
@@ -50,19 +55,22 @@ export const sendMessage = ({
   socket.emit("sendMessage", { proposalId, content, receiverId });
 };
 
-export const notifyTyping = (proposalId: number | string) => {
+export const notifyTyping = (
+  proposalId: number | string,
+  receiverId: number
+) => {
   if (!socket || !socket.connected) return;
-
-  socket.emit("typing", { proposalId });
+  socket.emit("typing", { proposalId, receiverId });
 };
 
 export const markMessageAsRead = ({
   messageId,
   proposalId,
+  receiverId,
 }: ReadMessagePayload) => {
   if (!socket || !socket.connected) return;
 
-  socket.emit("messageRead", { messageId, proposalId });
+  socket.emit("messageRead", { messageId, proposalId, receiverId });
 };
 
 export const disconnectSocket = () => {
@@ -70,22 +78,30 @@ export const disconnectSocket = () => {
   socket = null;
 };
 
-export const getMessages = async (proposalId: number | string) => {
+export const getMessages = async (
+  proposalId: number | string,
+  receiverId: number | string
+) => {
   try {
-    const response = await fetch(`${API_URL}/api/messages/${proposalId}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
+    const response = await instance.get(`/proposals/${proposalId}/messages`, {
+      params: { receiverId },
     });
-
-    if (!response.ok) {
-      throw new Error("Failed to fetch messages");
-    }
-
-    return await response.json();
+    return response.data;
   } catch (error) {
     console.error("Error fetching messages:", error);
     throw error;
   }
+};
+
+// Get investors for a specific proposal
+export const getProposalInvestors = async (id: string | number) => {
+  const res = await instance.get(`/proposals/${id}/investors`);
+  return res.data;
+};
+
+export const getInvestorContributions = async (proposalId: number | string) => {
+  const res = await instance.get(
+    `/proposals/${proposalId}/investor-contributions`
+  );
+  return res.data;
 };

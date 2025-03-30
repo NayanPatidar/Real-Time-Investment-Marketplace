@@ -12,7 +12,7 @@ model User {
   email              String    @unique
   password           String
   role               Role
-  name               String    // ✅ Add this line
+  name               String    
   createdAt          DateTime  @default(now())
   proposals          Proposal[]
   sentMessages       Message[] @relation("Sender")
@@ -21,6 +21,7 @@ model User {
   acceptedInvestments AcceptedInvestor[] @relation("InvestorUser")
   totalInvestment    Float     @default(0)
   activeInvestments  Int       @default(0)
+    notifications Notification[] 
 }
 
 
@@ -56,6 +57,7 @@ model Message {
   senderId   Int
   receiverId Int
   proposalId Int
+  chatRoomId String   // ✅ Ensure this line exists
   content    String
   timestamp  DateTime @default(now())
   read       Boolean  @default(false)
@@ -63,6 +65,7 @@ model Message {
   receiver   User     @relation("Receiver", fields: [receiverId], references: [id])
   proposal   Proposal @relation(fields: [proposalId], references: [id])
 }
+
 
 model Comment {
   id         Int      @id @default(autoincrement())
@@ -74,6 +77,24 @@ model Comment {
   user       User     @relation(fields: [userId], references: [id])
 }
 
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  type      NotificationType
+  content   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+enum NotificationType {
+  INVESTMENT
+  MESSAGE
+  COMMENT
+  OTHER
+}
+
+
 enum Role {
   FOUNDER
   INVESTOR
@@ -82,8 +103,6 @@ enum Role {
 
 enum Status {
   UNDER_REVIEW
-  APPROVED
   NEGOTIATING
   FUNDED
-  REJECTED
 }

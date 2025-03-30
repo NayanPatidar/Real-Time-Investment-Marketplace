@@ -1,12 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import {
-  Image,
-  MessageCircle,
-  Mic,
-  Paperclip,
-  Send,
-  Smile,
-} from "lucide-react";
+import { Mic, Send } from "lucide-react";
 import {
   initializeSocket,
   joinProposalChat,
@@ -21,8 +14,19 @@ import { Avatar, AvatarFallback, AvatarImage } from "@radix-ui/react-avatar";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { useSocket } from "@/context/SocketRef";
 
-// Define Message type for better TypeScript support
+interface TypingPayload {
+  userId: number;
+  receiverId: number;
+}
+
+interface MessageReadPayload {
+  messageId: number;
+  receiverId: number;
+}
+
 interface Message {
   id: number;
   senderId: number;
@@ -65,41 +69,38 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [isTyping, setIsTyping] = useState<boolean>(false);
   const [typingUser, setTypingUser] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const socketRef = useRef<any>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const socketRef = useSocket();
 
   useEffect(() => {
-    if (isOpen && token) {
-      const socket = initializeSocket(token);
-      socketRef.current = socket;
+    const socket = socketRef.current;
+    if (isOpen && token && socket) {
+      joinProposalChat(proposalId, receiverId);
+      loadMessages();
+      setupSocketListeners();
+    }
 
-      socket.on("connect", () => {
-        console.log("✅ Socket connected.");
-        joinProposalChat(proposalId);
-        loadMessages();
-        setupSocketListeners();
-      });
-
-      return () => {
-        socket.off("connect");
+    return () => {
+      if (socket) {
         socket.off("newMessage");
         socket.off("typing");
         socket.off("messageRead");
-      };
-    }
-  }, [isOpen, token, proposalId]);
+      }
+    };
+  }, [isOpen, token, proposalId, receiverId, socketRef]);
 
   const loadMessages = async () => {
     try {
-      const messageData = await getMessages(proposalId);
+      const messageData = await getMessages(proposalId, receiverId);
       setMessages(messageData);
 
       // Mark unread messages as read
-      messageData.forEach((message) => {
+      messageData.forEach((message: Message) => {
         if (message.receiverId === currentUser.id && !message.read) {
           markMessageAsRead({
             messageId: message.id,
             proposalId,
+            receiverId,
           });
         }
       });
@@ -111,43 +112,59 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const setupSocketListeners = () => {
     if (!socketRef.current) return;
 
-    // Handle incoming messages
+    // Incoming message
     socketRef.current.on("newMessage", (message: Message) => {
-      setMessages((prev) => [...prev, message]);
+      console.log(message);
 
-      // If we are the receiver, mark as read automatically
+      setMessages((prev) => {
+        const alreadyExists = prev.some((m) => m.id === message.id);
+        if (alreadyExists) return prev;
+        return [...prev, message];
+      });
+
       if (message.receiverId === currentUser.id) {
         markMessageAsRead({
           messageId: message.id,
           proposalId,
+          receiverId,
         });
       }
     });
 
-    // Handle typing indicators
-    socketRef.current.on("typing", ({ userId }) => {
-      if (userId !== currentUser.id) {
-        setIsTyping(true);
-        setTypingUser(userId);
+    // Typing event
+    socketRef.current.on(
+      "typing",
+      ({ userId, receiverId: targetId }: TypingPayload) => {
+        console.log(`User ${userId} is typing...`);
+        console.log(userId, targetId, currentUser.id);
 
-        // Clear typing indicator after 3 seconds
-        if (typingTimeoutRef.current) {
-          clearTimeout(typingTimeoutRef.current);
+        if (userId !== currentUser.id && targetId === currentUser.id) {
+          setIsTyping(true);
+          setTypingUser(userId);
+
+          if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
+          }
+
+          typingTimeoutRef.current = setTimeout(() => {
+            setIsTyping(false);
+            setTypingUser(null);
+          }, 3000);
         }
-
-        typingTimeoutRef.current = setTimeout(() => {
-          setIsTyping(false);
-          setTypingUser(null);
-        }, 3000);
       }
-    });
+    );
 
-    // Handle read receipts
-    socketRef.current.on("messageRead", ({ messageId }) => {
-      setMessages((prev) =>
-        prev.map((msg) => (msg.id === messageId ? { ...msg, read: true } : msg))
-      );
-    });
+    // Read receipts
+    socketRef.current.on(
+      "messageRead",
+      ({ messageId, receiverId }: MessageReadPayload) => {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === messageId ? { ...msg, read: true } : msg
+          )
+        );
+      }
+    );
   };
 
   const handleSendMessage = () => {
@@ -161,17 +178,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     });
 
     // Clear input field
+    setTimeout(scrollToBottom, 100);
     setNewMessage("");
   };
 
   const handleTyping = () => {
-    notifyTyping(proposalId);
+    notifyTyping(proposalId, receiverId);
   };
 
   // Auto-scroll to bottom of messages
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
 
   const formatTime = (timestamp: string): string => {
     return new Date(timestamp).toLocaleTimeString("en-US", {
@@ -180,9 +195,18 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     });
   };
 
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isTyping]); // Add isTyping to trigger scroll when typing indicator appears
+
+  // Create a dedicated scroll function for reuse
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[400px] p-0 gap-0 bg-white/95 backdrop-blur-sm max-h-[85vh] flex flex-col rounded-xl shadow-2xl border">
+      <DialogContent className="sm:max-w-[400px] p-0 gap-0 bg-white/95 backdrop-blur-sm max-h-[65vh] flex flex-col rounded-xl shadow-2xl border">
         <DialogHeader className="p-4 border-b bg-white/50 backdrop-blur-sm">
           <DialogTitle className="flex items-center gap-3">
             <Avatar className="h-10 w-10 border-2 border-white shadow-sm flex justify-center items-center">
@@ -197,7 +221,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         </DialogHeader>
 
         {/* Chat messages container */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[350px] max-h-[60vh] bg-gradient-to-b from-gray-50 to-white">
+        <div
+          className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[350px] max-h-[60vh] bg-gradient-to-b from-gray-50 to-white"
+          onScroll={(e) => {
+            // Optional: Track when user manually scrolls up to temporarily disable auto-scroll
+            const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+            const isScrolledToBottom =
+              scrollHeight - scrollTop - clientHeight < 30;
+            // You could set a state variable here if you want to implement a "new messages" button
+          }}
+        >
           {messages.map((message) => (
             <div
               key={message.id}
@@ -258,18 +291,22 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
               </span>
             </div>
           )}
+
+          {/* This empty div is our scroll target */}
+          <div ref={messagesEndRef} />
         </div>
 
         {/* Message input area */}
         <DialogFooter className="flex-shrink-0 border-t p-4 bg-white/50 backdrop-blur-sm">
           <div className="flex w-full items-end gap-2">
             <Textarea
-              className="flex-1 min-h-10 max-h-32 w-64 resize-none rounded-xl border-gray-200 focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+              className="flex-1 min-h-10 max-h-32 w-82 resize-none rounded-xl border-gray-200 focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
               placeholder="Type your message..."
               value={newMessage}
               rows={1}
               onChange={(e) => {
                 setNewMessage(e.target.value);
+
                 handleTyping();
               }}
               onKeyDown={(e) => {
@@ -280,13 +317,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
               }}
             />
             <div className="flex gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="rounded-full h-9 w-9 hover:bg-gray-100"
-              >
-                <Mic className="h-4 w-4 text-gray-600" />
-              </Button>
               <Button
                 size="icon"
                 className="rounded-full h-9 w-9 bg-indigo-600 hover:bg-indigo-700 transition-colors"

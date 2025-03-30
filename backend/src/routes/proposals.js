@@ -36,21 +36,41 @@ router.get(
     try {
       const proposals = await prisma.proposal.findMany({
         include: {
-          founder: { select: { email: true } },
+          founder: {
+            select: { id: true, name: true, email: true },
+          },
           acceptedInvestors: {
-            where: { investorId: req.user.id },
-            select: { contribution: true },
+            include: {
+              investor: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
           },
         },
       });
 
-      const enrichedProposals = proposals.map((p) => ({
-        ...p,
-        investorContribution: p.acceptedInvestors.reduce(
-          (sum, a) => sum + a.contribution,
-          0
-        ),
-      }));
+      const enrichedProposals = proposals.map((proposal) => {
+        const investorContribution = proposal.acceptedInvestors
+          .filter((a) => a.investor.id === req.user.id)
+          .reduce((sum, a) => sum + a.contribution, 0);
+
+        const allInvestments = proposal.acceptedInvestors.map((a) => ({
+          id: a.investor.id,
+          name: a.investor.name,
+          email: a.investor.email,
+          contribution: a.contribution,
+        }));
+
+        return {
+          ...proposal,
+          investorContribution,
+          allInvestors: allInvestments,
+        };
+      });
 
       const investorStats = await prisma.user.findUnique({
         where: { id: req.user.id },
@@ -85,7 +105,17 @@ router.get(
         orderBy: {
           createdAt: "desc",
         },
+        include: {
+          founder: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
       });
+
       res.json(proposals);
     } catch (error) {
       console.error("Fetch founder proposals error:", error);
@@ -105,6 +135,7 @@ router.get("/comments/:id", authenticateToken, async (req, res) => {
             id: true,
             email: true,
             role: true,
+            name: true,
           },
         },
       },
@@ -137,6 +168,7 @@ router.post("/comments/:id", authenticateToken, async (req, res) => {
             id: true,
             email: true,
             role: true,
+            name: true,
           },
         },
       },
@@ -149,9 +181,11 @@ router.post("/comments/:id", authenticateToken, async (req, res) => {
   }
 });
 
-// Get single proposal (Founder/Investor/Admin)
+// GET /api/proposals/:id
 router.get("/:id(\\d+)", authenticateToken, async (req, res) => {
   const { id } = req.params;
+  const userId = req.user.id;
+  const role = req.user.role;
 
   try {
     const proposal = await prisma.proposal.findUnique({
@@ -177,10 +211,10 @@ router.get("/:id(\\d+)", authenticateToken, async (req, res) => {
           },
         },
         acceptedInvestors: {
-          where: {
-            investorId: req.user.role === "INVESTOR" ? req.user.id : undefined,
+          select: {
+            investorId: true,
+            contribution: true,
           },
-          select: { contribution: true },
         },
       },
     });
@@ -190,15 +224,20 @@ router.get("/:id(\\d+)", authenticateToken, async (req, res) => {
     }
 
     // FOUNDER can only access their own proposal
-    if (req.user.role === "FOUNDER" && proposal.founder.id !== req.user.id) {
+    if (role === "FOUNDER" && proposal.founder.id !== userId) {
       return res.status(403).json({ message: "Permission denied" });
     }
 
-    const investorContribution =
-      proposal.acceptedInvestors?.reduce(
-        (sum, entry) => sum + entry.contribution,
-        0
-      ) || 0;
+    const contributions = proposal.acceptedInvestors || [];
+
+    const yourContribution =
+      contributions.find((inv) => inv.investorId === userId)?.contribution || 0;
+
+    const othersContribution = contributions
+      .filter((inv) => inv.investorId !== userId)
+      .reduce((sum, inv) => sum + inv.contribution, 0);
+
+    const totalContribution = yourContribution + othersContribution;
 
     res.json({
       id: proposal.id,
@@ -210,7 +249,11 @@ router.get("/:id(\\d+)", authenticateToken, async (req, res) => {
       createdAt: proposal.createdAt,
       founder: proposal.founder,
       comments: proposal.comments,
-      investorContribution,
+      contributions: {
+        yourContribution,
+        othersContribution,
+        totalContribution,
+      },
     });
   } catch (error) {
     console.error("Fetch proposal error:", error);
@@ -222,11 +265,11 @@ router.get("/:id(\\d+)", authenticateToken, async (req, res) => {
 router.put(
   "/:id",
   authenticateToken,
-  restrictTo("investor", "admin"),
+  restrictTo("INVESTOR", "ADMIN"),
   async (req, res) => {
     const { status } = req.body;
     const { id } = req.params;
-    if (!["UNDER_REVIEW", "NEGOTIATING", "FUNDED"].includes(status)) {
+    if (!["UNDER_REVIEW" | "NEGOTIATING" | "FUNDED"].includes(status)) {
       return res.status(400).json({ message: "Invalid status" });
     }
     try {
@@ -249,7 +292,7 @@ router.put(
 router.post(
   "/:id/comments",
   authenticateToken,
-  restrictTo("investor", "founder"),
+  restrictTo("INVESTOR", "FOUNDER"),
   async (req, res) => {
     const { content } = req.body;
     const { id } = req.params;
@@ -284,18 +327,24 @@ router.post(
       const proposal = await prisma.proposal.findUnique({
         where: { id: proposalId },
       });
+      console.log("Proposal:", proposal);
 
       if (!proposal) {
         return res.status(404).json({ message: "Proposal not found" });
       }
 
-      const newTotal = proposal.currentFunding + amount;
+      const allContributions = await prisma.acceptedInvestor.aggregate({
+        where: { proposalId },
+        _sum: { contribution: true },
+      });
 
-      // Step 2: Prevent overfunding
+      const currentSum = allContributions._sum.contribution || 0;
+      const newTotal = currentSum + amount;
+
       if (newTotal > proposal.fundingGoal) {
-        return res
-          .status(400)
-          .json({ message: "Investment exceeds funding goal" });
+        return res.status(400).json({
+          message: "Investment exceeds funding goal",
+        });
       }
 
       // Step 3: Check for existing investment
@@ -333,19 +382,23 @@ router.post(
         });
       }
 
-      // Step 6: Update proposal currentFunding and status
+      const myproposal = await prisma.proposal.findUnique({
+        where: { id: parseInt(proposalId) },
+      });
+
       await prisma.proposal.update({
         where: { id: proposalId },
         data: {
-          currentFunding: { increment: amount },
-          status:
-            newTotal >= proposal.fundingGoal
-              ? "FUNDED"
-              : proposal.status === "APPROVED"
-              ? "NEGOTIATING"
-              : proposal.status,
+          currentFunding: newTotal,
         },
       });
+
+      if (myproposal?.status === "UNDER_REVIEW") {
+        await prisma.proposal.update({
+          where: { id: parseInt(proposalId) },
+          data: { status: "NEGOTIATING" },
+        });
+      }
 
       // Step 7: Update total investment for user
       await prisma.user.update({
@@ -355,6 +408,19 @@ router.post(
         },
       });
 
+      await prisma.notification.create({
+        data: {
+          userId: proposal.founderId,
+          type: "INVESTMENT",
+          content: `${req.user.name} has invested $${amount} in your proposal "${proposal.title}"`,
+        },
+      });
+
+      req.io.to(`user:${proposal.founderId}`).emit("notification", {
+        message: `${req.user.name} has invested $${amount}`,
+      });
+      console.log("Notification sent to founder:", proposal.founderId);
+
       res.status(200).json({ message: "Investment successful" });
     } catch (error) {
       console.error("Investment error:", error);
@@ -363,18 +429,35 @@ router.post(
   }
 );
 
-// GET /api/proposals/:id/messages
+// GET /api/proposals/:id/messages?receiverId=123
 router.get(
   "/:id/messages",
   authenticateToken,
-  restrictTo("investor", "founder", "admin"),
+  restrictTo("INVESTOR", "FOUNDER", "ADMIN"),
   async (req, res) => {
     const { id } = req.params;
+    const { receiverId } = req.query;
+
+    if (!receiverId) {
+      return res
+        .status(400)
+        .json({ message: "Missing required receiverId query param" });
+    }
+
+    const proposalId = parseInt(id);
+    const senderId = req.user.id;
+    const receiver = parseInt(receiverId);
+
+    // Deterministic chatRoomId
+    const chatRoomId = `proposal:${proposalId}:chat:${[senderId, receiver]
+      .sort((a, b) => a - b)
+      .join("_")}`;
 
     try {
       const messages = await prisma.message.findMany({
         where: {
-          proposalId: parseInt(id),
+          proposalId,
+          chatRoomId,
         },
         orderBy: {
           timestamp: "asc",
@@ -403,6 +486,89 @@ router.get(
     } catch (error) {
       console.error("Error fetching messages:", error);
       res.status(500).json({ message: "Failed to fetch messages" });
+    }
+  }
+);
+
+// GET /api/proposals/:id/investors
+router.get("/:id/investors", authenticateToken, async (req, res) => {
+  const proposalId = parseInt(req.params.id);
+  const founderId = req.user.id;
+
+  try {
+    // Find all messages where the current user (founder) is the receiver
+    const messages = await prisma.message.findMany({
+      where: {
+        proposalId,
+        receiverId: founderId,
+      },
+      select: {
+        senderId: true,
+        sender: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
+      distinct: ["senderId"], // Only unique investors
+    });
+
+    // Filter only senders with role "INVESTOR"
+    const investors = messages
+      .filter((msg) => msg.sender.role === "INVESTOR")
+      .map((msg) => msg.sender);
+
+    res.status(200).json(investors);
+  } catch (error) {
+    console.error("Failed to fetch investors who sent messages:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// GET /api/proposals/:id/investor-contributions
+router.get(
+  "/:id/investor-contributions",
+  authenticateToken,
+  async (req, res) => {
+    const proposalId = parseInt(req.params.id);
+
+    try {
+      const investors = await prisma.acceptedInvestor.findMany({
+        where: { proposalId },
+        include: {
+          investor: {
+            select: { id: true, name: true, email: true },
+          },
+        },
+      });
+
+      // Assign unique color to each investor (deterministically or randomly)
+      const colors = [
+        "#6366F1",
+        "#10B981",
+        "#F59E0B",
+        "#EF4444",
+        "#3B82F6",
+        "#8B5CF6",
+        "#EC4899",
+        "#22D3EE",
+      ];
+
+      const response = investors.map((entry, index) => ({
+        id: entry.investor.id,
+        name: entry.investor.name || entry.investor.email,
+        email: entry.investor.email,
+        contribution: entry.contribution,
+        color: colors[index % colors.length],
+      }));
+
+      res.status(200).json(response);
+    } catch (error) {
+      console.error("Error fetching investor contributions:", error);
+      res.status(500).json({ message: "Internal server error" });
     }
   }
 );
