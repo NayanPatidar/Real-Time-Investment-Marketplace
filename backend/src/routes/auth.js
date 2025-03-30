@@ -7,18 +7,22 @@ const router = express.Router();
 
 const validateAuth = (req, res, next) => {
   const { email, password, role } = req.body;
+  console.log("Request body:", req.body);
+  
   if (
     !email ||
     !password ||
     (req.path === "/signup" && !["FOUNDER", "INVESTOR", "ADMIN"].includes(role))
   ) {
+    console.log("Missing fields in request body");
+    
     return res.status(400).json({ message: "Missing Fields" });
   }
   next();
 };
 
 router.post("/signup", validateAuth, async (req, res) => {
-  const { email, password, role } = req.body;
+  const { email, password, role, name } = req.body;
   try {
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser)
@@ -26,7 +30,7 @@ router.post("/signup", validateAuth, async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
-      data: { email, password: hashedPassword, role },
+      data: { email, password: hashedPassword, role, name },
     });
     const token = jwt.sign(
       { id: user.id, role: user.role },
