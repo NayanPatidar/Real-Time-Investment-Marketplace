@@ -4,6 +4,7 @@ export interface Author {
   id: number;
   email: string;
   role: string;
+  name: string;
 }
 
 export interface Comment {

@@ -27,7 +27,7 @@ export const getProposalById = async (id: string | number) => {
 // Update proposal status (Investor/Admin)
 export const updateProposalStatus = async (
   id: string | number,
-  status: "UNDER_REVIEW" | "NEGOTIATING" | "FUNDED"
+  status: "UNDER_REVIEW" | "NEGOTIATING" | "FUNDED" 
 ) => {
   const res = await instance.put(`/proposals/${id}`, { status });
   return res.data;

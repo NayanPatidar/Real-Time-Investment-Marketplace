@@ -32,7 +32,7 @@ export default function FounderCommentsSection({
         const formatted = data.map((c: any) => ({
           id: c.id,
           author: {
-            name: c.user.email,
+            name: c.user.name,
             role: c.user.role,
             avatar: "/avatars/default.jpg",
           },
@@ -57,7 +57,7 @@ export default function FounderCommentsSection({
       const formatted = {
         id: created.id,
         author: {
-          name: created.user.email,
+          name: created.user.name,
           role: created.user.role,
           avatar: "/avatars/you.jpg",
         },
