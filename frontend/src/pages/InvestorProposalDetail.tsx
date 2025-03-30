@@ -14,14 +14,6 @@ import {
   Send,
   ThumbsUp,
 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -45,6 +37,7 @@ interface Proposal {
   founder: {
     name?: string;
     email: string;
+    id: number;
   };
 }
 
@@ -101,7 +94,7 @@ export default function InvestorProposalDetail() {
           (c): UIComment => ({
             id: c.id,
             author: {
-              name: c.user.email,
+              name: c.user.name,
               role: c.user.role,
               avatar: "/avatars/default.jpg", // fallback
             },
@@ -124,6 +117,7 @@ export default function InvestorProposalDetail() {
 
   useEffect(() => {
     const fetchProposal = async () => {
+      if (!id) return;
       try {
         const data = await getProposalById(id);
         setProposal(data);
@@ -156,7 +150,7 @@ export default function InvestorProposalDetail() {
       const formatted: UIComment = {
         id: created.id,
         author: {
-          name: created.user.email,
+          name: created.user.name,
           role: created.user.role,
           avatar: "/avatars/you.jpg",
         },
@@ -276,7 +270,7 @@ export default function InvestorProposalDetail() {
     if (user.id !== proposal.founder?.id) {
       return {
         id: proposal.founder?.id,
-        name: proposal.founder?.name || "Founder",
+        name: proposal.founder?.name || "Unknown",
         avatar: "/avatars/default.jpg",
       };
     }
@@ -554,19 +548,21 @@ export default function InvestorProposalDetail() {
             Chat with {recipient.name}
           </Button>
 
-          <ChatInterface
-            proposalId={parseInt(id)}
-            receiverId={recipient.id}
-            currentUser={{
-              id: user.id,
-              name: user.name,
-              avatar: user.avatar || "/avatars/you.jpg",
-            }}
-            receiver={recipient}
-            isOpen={isChatOpen}
-            onClose={() => setIsChatOpen(false)}
-            token={token}
-          />
+          {user && recipient && token && id && (
+            <ChatInterface
+              proposalId={parseInt(id)}
+              receiverId={recipient.id}
+              currentUser={{
+                id: user.id,
+                name: user.name ?? "You",
+                avatar: "/avatars/you.jpg",
+              }}
+              receiver={recipient}
+              isOpen={isChatOpen}
+              onClose={() => setIsChatOpen(false)}
+              token={token}
+            />
+          )}
         </div>
       )}
     </div>

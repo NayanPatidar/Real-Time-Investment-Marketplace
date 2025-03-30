@@ -8,7 +8,7 @@ interface JwtPayload {
   exp: number;
   id: number;
   role: string;
-  // Add any other fields that are in your JWT payload
+  name: string;
 }
 
 // Define proper user type

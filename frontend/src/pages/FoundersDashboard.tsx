@@ -125,7 +125,7 @@ export default function FounderDashboard() {
                       <div className="mt-2 flex items-center gap-4 flex-wrap">
                         <span className="flex items-center gap-1 text-sm text-gray-500">
                           <FileText size={16} />
-                          Created on {proposal.createdAt}
+                          Created on {proposal.createdAt.split("T")[0]}
                         </span>
                         <span className="text-sm text-indigo-600 font-medium">
                           Funding Goal: ${proposal.fundingGoal.toLocaleString()}

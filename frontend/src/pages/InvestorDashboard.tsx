@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { JSX, useEffect, useState } from "react";
 import {
   Search,
   Filter,
@@ -10,17 +10,62 @@ import {
 import { useNavigate } from "react-router-dom";
 import { logout } from "@/utils/auth";
 import { getAllProposals, investInProposal } from "@/api/proposal";
+import useAuth from "@/hooks/useAuth";
 
-interface Proposal {
-  id: string;
+interface Investor {
+  id: number;
+  name: string;
+  email: string;
+}
+
+interface AcceptedInvestor {
+  id: number;
+  proposalId: number;
+  investorId: number;
+  contribution: number;
+  createdAt: string;
+  investor: Investor;
+}
+
+interface AllInvestor {
+  id: number;
+  name: string;
+  email: string;
+  contribution: number;
+}
+
+interface Founder {
+  id: number;
+  name: string;
+  email: string;
+}
+
+export interface Proposal {
+  id: number;
+  founderId: number;
   title: string;
   description: string;
   fundingGoal: number;
   currentFunding: number;
-  status: "UNDER_REVIEW" | "APPROVED" | "NEGOTIATING" | "FUNDED" | "REJECTED";
+  status: "UNDER_REVIEW" | "NEGOTIATING" | "FUNDED";
   createdAt: string;
-  creatorName: string;
-  investorContribution: number;
+  founder: Founder;
+  acceptedInvestors: AcceptedInvestor[];
+  investorContribution: number; // contribution by current user
+  allInvestors: AllInvestor[]; // contribution by all
+}
+
+const COLORS = [
+  "#6366f1", // Indigo
+  "#f59e0b", // Amber
+  "#10b981", // Emerald
+  "#3b82f6", // Blue
+  "#ef4444", // Red
+  "#a855f7", // Purple
+];
+
+function getColorForInvestor(id: number) {
+  return COLORS[id % COLORS.length];
 }
 
 export default function InvestorDashboard() {
@@ -34,6 +79,7 @@ export default function InvestorDashboard() {
   const [investmentAmount, setInvestmentAmount] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("ALL");
+  const { user } = useAuth();
 
   const [stats, setStats] = useState({
     totalInvested: 0,
@@ -215,10 +261,8 @@ export default function InvestorDashboard() {
             >
               <option value="ALL">All Statuses</option>
               <option value="UNDER_REVIEW">Under Review</option>
-              <option value="APPROVED">Approved</option>
               <option value="NEGOTIATING">Negotiating</option>
               <option value="FUNDED">Funded</option>
-              <option value="REJECTED">Rejected</option>
             </select>
           </div>
         </div>
@@ -237,105 +281,117 @@ export default function InvestorDashboard() {
         ) : (
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="divide-y divide-gray-200">
-              {filteredProposals.map((proposal) => (
-                <div
-                  key={proposal.id}
-                  className="p-6 hover:bg-gray-50 transition-colors cursor-pointer"
-                  onClick={() => navigate(`/investor/proposal/${proposal.id}`)}
-                >
-                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-start gap-2">
-                        <h3 className="text-lg font-medium text-gray-900">
-                          {proposal.title}
-                        </h3>
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            proposal.status === "APPROVED"
-                              ? "bg-green-100 text-green-800"
-                              : proposal.status === "REJECTED"
-                              ? "bg-red-100 text-red-800"
-                              : proposal.status === "FUNDED"
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-yellow-100 text-yellow-800"
-                          }`}
-                        >
-                          {proposal.status}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-sm text-gray-500">
-                        {proposal.description.length > 150
-                          ? `${proposal.description.substring(0, 150)}...`
-                          : proposal.description}
-                      </p>
-                      <div className="mt-2 flex items-center text-sm text-gray-500">
-                        By {proposal.creatorName} • Created on{" "}
-                        {proposal.createdAt}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col items-end gap-2">
-                      <div className="text-right">
-                        <p className="text-sm text-gray-500">
-                          Funding Progress
+              {filteredProposals.map((proposal) => {
+                {
+                  console.log(proposal);
+                }
+                return (
+                  <div
+                    key={proposal.id}
+                    className="p-6 hover:bg-gray-50 transition-colors cursor-pointer"
+                    onClick={() =>
+                      navigate(`/investor/proposal/${proposal.id}`)
+                    }
+                  >
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-start gap-2">
+                          <h3 className="text-lg font-medium text-gray-900">
+                            {proposal.title}
+                          </h3>
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              proposal.status === "UNDER_REVIEW"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : proposal.status === "NEGOTIATING"
+                                ? "bg-blue-100 text-blue-800"
+                                : proposal.status === "FUNDED"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-red-100 text-red-800"
+                            }`}
+                          >
+                            {proposal.status}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm text-gray-500">
+                          {proposal.description.length > 150
+                            ? `${proposal.description.substring(0, 150)}...`
+                            : proposal.description}
                         </p>
-                        <p className="text-lg font-medium">
-                          ${proposal?.currentFunding?.toLocaleString()} / $
-                          {proposal.fundingGoal.toLocaleString()}
-                        </p>
+                        <div className="mt-2 flex items-center text-sm text-gray-500">
+                          By {proposal?.founder.name} • Created on{" "}
+                          {proposal.createdAt}
+                        </div>
                       </div>
 
-                      <div className="w-full bg-gray-200 rounded-full h-2.5 relative overflow-hidden">
-                        {/* Total funding progress */}
-                        <div
-                          className="bg-indigo-600 h-full absolute left-0 top-0"
-                          style={{
-                            width: `${Math.min(
-                              100,
-                              (proposal.currentFunding / proposal.fundingGoal) *
-                                100
-                            )}%`,
-                            zIndex: 10,
-                          }}
-                        />
+                      <div className="flex flex-col items-end gap-2">
+                        <div className="text-right">
+                          <p className="text-sm text-gray-500">
+                            Funding Progress
+                          </p>
+                          <p className="text-lg font-medium">
+                            ${proposal?.currentFunding?.toLocaleString()} / $
+                            {proposal.fundingGoal.toLocaleString()}
+                          </p>
+                        </div>
 
-                        {/* Your contribution */}
-                        {proposal?.investorContribution > 0 && (
-                          <div
-                            className="bg-green-500 h-full absolute left-0 top-0"
-                            style={{
-                              width: `${Math.min(
-                                100,
-                                (proposal.investorContribution /
-                                  proposal.fundingGoal) *
-                                  100
-                              )}%`,
-                              zIndex: 20,
-                            }}
-                          />
+                        <div className="w-full bg-gray-200 rounded-full h-2.5 relative overflow-hidden">
+                          {
+                            proposal?.allInvestors?.reduce(
+                              ({ offset, bars }, investor) => {
+                                const widthPercent = Math.min(
+                                  100,
+                                  (investor.contribution /
+                                    proposal.fundingGoal) *
+                                    100
+                                );
+
+                                bars.push(
+                                  <div
+                                    key={investor.id}
+                                    className="absolute h-full top-0"
+                                    style={{
+                                      width: `${widthPercent}%`,
+                                      left: `${offset}%`,
+                                      backgroundColor:
+                                        investor.id === user?.id
+                                          ? "#22c55e"
+                                          : getColorForInvestor(investor.id),
+                                      zIndex:
+                                        investor.id === user?.id ? 20 : 10,
+                                    }}
+                                  />
+                                );
+
+                                return { offset: offset + widthPercent, bars };
+                              },
+                              { offset: 0, bars: [] as JSX.Element[] }
+                            ).bars
+                          }
+                        </div>
+
+                        {proposal.investorContribution > 0 && (
+                          <p className="text-sm text-green-600 mt-1 font-medium">
+                            You invested $
+                            {proposal.investorContribution.toLocaleString()}
+                          </p>
                         )}
-                      </div>
-                      {proposal.investorContribution > 0 && (
-                        <p className="text-sm text-green-600 mt-1 font-medium">
-                          You invested $
-                          {proposal.investorContribution.toLocaleString()}
-                        </p>
-                      )}
 
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openInvestModal(proposal);
-                        }}
-                        className="mt-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
-                        // disabled={proposal.status !== "APPROVED"}
-                      >
-                        Invest Now
-                      </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openInvestModal(proposal);
+                          }}
+                          className="mt-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                          // disabled={proposal.status !== "APPROVED"}
+                        >
+                          Invest Now
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -365,17 +421,39 @@ export default function InvestorDashboard() {
                 </p>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2.5">
-                <div
-                  className="bg-indigo-600 h-2.5 rounded-full"
-                  style={{
-                    width: `${Math.min(
-                      100,
-                      (selectedProposal.currentFunding /
-                        selectedProposal.fundingGoal) *
-                        100
-                    )}%`,
-                  }}
-                ></div>
+                <div className="w-full bg-gray-200 rounded-full h-2.5 relative overflow-hidden">
+                  {
+                    selectedProposal?.allInvestors?.reduce(
+                      ({ offset, bars }, investor) => {
+                        const widthPercent = Math.min(
+                          100,
+                          (investor.contribution /
+                            selectedProposal.fundingGoal) *
+                            100
+                        );
+
+                        bars.push(
+                          <div
+                            key={investor.id}
+                            className="absolute h-full top-0"
+                            style={{
+                              width: `${widthPercent}%`,
+                              left: `${offset}%`,
+                              backgroundColor:
+                                investor.id === user?.id
+                                  ? "#22c55e"
+                                  : getColorForInvestor(investor.id),
+                              zIndex: investor.id === user?.id ? 20 : 10,
+                            }}
+                          />
+                        );
+
+                        return { offset: offset + widthPercent, bars };
+                      },
+                      { offset: 0, bars: [] as JSX.Element[] }
+                    ).bars
+                  }
+                </div>
               </div>
             </div>
 

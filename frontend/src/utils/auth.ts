@@ -26,6 +26,7 @@ interface JwtPayload {
   exp: number;
   id: number;
   role: string;
+  name: string;
 }
 
 export function getUserRole() {
@@ -34,6 +35,7 @@ export function getUserRole() {
 
   try {
     const decoded = jwtDecode<JwtPayload>(token);
+    console.log("Decoded token:", decoded);
     return decoded.role || null;
   } catch (error) {
     console.error("Failed to decode token:", error);
