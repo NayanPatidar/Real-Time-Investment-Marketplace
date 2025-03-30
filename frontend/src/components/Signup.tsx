@@ -7,6 +7,7 @@ export default function SignUp() {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
+    name: "",
     role: "FOUNDER",
   });
   const navigate = useNavigate();
@@ -17,7 +18,8 @@ export default function SignUp() {
       const { token } = await signup(
         formData.email,
         formData.password,
-        formData.role
+        formData.role,
+        formData.name,
       );
       localStorage.setItem("token", token);
       navigate("/");
@@ -36,6 +38,30 @@ export default function SignUp() {
       </div>
 
       <div className="space-y-4">
+        <div>
+          <label
+            htmlFor="name"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Full Name
+          </label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <UserCircle className="h-5 w-5 text-gray-400" />
+            </div>
+            <input
+              id="name"
+              type="text"
+              required
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              placeholder="Enter your full name"
+              value={formData.name}
+              onChange={(e) =>
+                setFormData({ ...formData, name: e.target.value })
+              }
+            />
+          </div>
+        </div>
         <div>
           <label
             htmlFor="email"
