@@ -38,7 +38,7 @@ export const addCommentToProposal = async (
   proposalId: string | number,
   content: string
 ) => {
-  const res = await instance.post(`/proposals/${proposalId}/comments`, {
+  const res = await instance.post(`/proposals/comments/${proposalId}`, {
     content,
   });
   return res.data;

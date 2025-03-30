@@ -2,8 +2,18 @@
 
 import instance from "./axios";
 
-export const signup = async (email: string, password: string, role: string) => {
-  const res = await instance.post("/auth/signup", { email, password, role });
+export const signup = async (
+  email: string,
+  password: string,
+  role: string,
+  name: string
+) => {
+  const res = await instance.post("/auth/signup", {
+    email,
+    password,
+    role,
+    name,
+  });
   return res.data;
 };
 
