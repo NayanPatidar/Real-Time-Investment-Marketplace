@@ -9,6 +9,7 @@ interface JwtPayload {
   id: number;
   role: string;
   name: string;
+  email: string;
 }
 
 // Define proper user type
@@ -64,7 +65,6 @@ export const useAuth = () => {
       // Save token to localStorage
       localStorage.setItem("token", data.token);
 
-      // Update state with decoded user info
       const decoded = jwtDecode<JwtPayload>(data.token);
       setToken(data.token);
       setUser(decoded);
@@ -78,8 +78,7 @@ export const useAuth = () => {
     }
   }, []);
 
-  // Use the existing logout function with a wrapper to update state
-  const handleLogout = useCallback(() => {
+  const handleLogout = useCallback(async () => {
     setUser(null);
     setToken(null);
     logout();

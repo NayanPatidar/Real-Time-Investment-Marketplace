@@ -1,10 +1,20 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { LogIn, UserPlus } from "lucide-react";
 import SignUp from "@/components/Signup";
 import SignIn from "@/components/SignIn";
+import { useParams } from "react-router-dom";
 
 function AuthPage() {
   const [isSignIn, setIsSignIn] = useState(true);
+  const { mode, role } = useParams();
+
+  useEffect(() => {
+    if (mode === "signup") {
+      setIsSignIn(false);
+    } else if (mode === "signin") {
+      setIsSignIn(true);
+    }
+  }, [mode]);
 
   return (
     <div className="min-h-screen bg-[#fcfeff] flex items-center justify-center p-4">
@@ -35,7 +45,9 @@ function AuthPage() {
             </button>
           </div>
 
-          <div className="p-8">{isSignIn ? <SignIn /> : <SignUp />}</div>
+          <div className="p-8">
+            {isSignIn ? <SignIn /> : <SignUp defaultRole={role} />}
+          </div>
         </div>
       </div>
     </div>

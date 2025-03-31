@@ -1,6 +1,10 @@
 // utils/isAuthenticated.js
 import { jwtDecode } from "jwt-decode";
 
+const handleLogout = async () => {
+  logout();
+};
+
 export function isAuthenticated() {
   const token = localStorage.getItem("token");
 
@@ -11,7 +15,7 @@ export function isAuthenticated() {
 
     const currentTime = Date.now() / 1000;
     if (!decoded || !decoded.exp || decoded.exp <= currentTime) {
-      logout();
+      handleLogout();
       return false;
     }
 
@@ -27,6 +31,7 @@ interface JwtPayload {
   id: number;
   role: string;
   name: string;
+  email: string;
 }
 
 export function getUserRole() {
@@ -45,7 +50,7 @@ export function getUserRole() {
 
 export function logout() {
   localStorage.removeItem("token");
-  window.location.href = "/auth";
+  window.location.href = "/auth/signin";
 }
 
 export function getUser() {
