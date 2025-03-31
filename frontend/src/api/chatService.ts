@@ -18,7 +18,7 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
 export const initializeSocket = (token: string): Socket => {
   console.log("Initializing socket with token:", token);
-
+  console.log("API URL:", API_URL);
   if (socket) socket.disconnect();
 
   socket = io(API_URL || "http://localhost:8080", {

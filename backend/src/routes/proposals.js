@@ -290,7 +290,9 @@ router.put(
   async (req, res) => {
     const { status } = req.body;
     const { id } = req.params;    
-    if (!["UNDER_REVIEW" | "NEGOTIATING" | "FUNDED"].includes(status)) {
+    console.log();
+    
+    if (!["UNDER_REVIEW" , "NEGOTIATING" , "FUNDED"].includes(status)) {
       return res.status(400).json({ message: "Invalid status" });
     }
     try {

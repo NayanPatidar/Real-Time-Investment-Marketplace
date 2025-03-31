@@ -1,5 +1,5 @@
 import { useParams } from "react-router-dom";
-import { JSX, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { getProposalById, investInProposal } from "@/api/proposal";
 import Navbar from "@/components/Navbars/Navbar";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { getProposalComments, postProposalComment } from "@/api/comment";
+import { getProposalComments } from "@/api/comment";
 import ChatInterface from "@/components/InvestorFounderChat";
 import useAuth from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -39,13 +39,6 @@ interface AcceptedInvestor {
   investor: Investor;
 }
 
-interface AllInvestor {
-  id: number;
-  name: string;
-  email: string;
-  contribution: number;
-}
-
 interface Founder {
   id: number;
   name: string;
@@ -65,13 +58,6 @@ interface AcceptedInvestor {
   contribution: number;
   createdAt: string;
   investor: Investor;
-}
-
-interface AllInvestor {
-  id: number;
-  name: string;
-  email: string;
-  contribution: number;
 }
 
 interface Founder {
@@ -99,25 +85,12 @@ export interface Proposal {
   contributions: Contributions;
 }
 
-const COLORS = [
-  "#6366f1", // Indigo
-  "#f59e0b", // Amber
-  "#10b981", // Emerald
-  "#3b82f6", // Blue
-  "#ef4444", // Red
-  "#a855f7", // Purple
-];
-
-function getColorForInvestor(id: number) {
-  return COLORS[id % COLORS.length];
-}
-
 export default function InvestorProposalDetail() {
   const { id } = useParams();
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [loading, setLoading] = useState(true);
-  const [newComment, setNewComment] = useState("");
-  const [comments, setComments] = useState([
+  // const [newComment, setNewComment] = useState("");
+  const [_, setComments] = useState([
     {
       id: 1,
       author: {
@@ -318,57 +291,57 @@ export default function InvestorProposalDetail() {
     setIsModalOpen(true);
   };
 
-  const handleSubmitComment = async () => {
-    if (!newComment.trim()) return;
+  // const handleSubmitComment = async () => {
+  //   if (!newComment.trim()) return;
 
-    try {
-      const created = await postProposalComment(id as string, newComment);
+  //   try {
+  //     const created = await postProposalComment(id as string, newComment);
 
-      const formatted: UIComment = {
-        id: created.id,
-        author: {
-          name: created.user.name,
-          role: created.user.role,
-          avatar: "/avatars/you.jpg",
-        },
-        content: created.content,
-        timestamp: created.timestamp,
-        likes: 0,
-      };
+  //     const formatted: UIComment = {
+  //       id: created.id,
+  //       author: {
+  //         name: created.user.name,
+  //         role: created.user.role,
+  //         avatar: "/avatars/you.jpg",
+  //       },
+  //       content: created.content,
+  //       timestamp: created.timestamp,
+  //       likes: 0,
+  //     };
 
-      setComments((prev) => [...prev, formatted]);
-      setNewComment("");
-    } catch (err) {
-      console.error("Failed to post comment:", err);
-    }
-  };
+  //     setComments((prev) => [...prev, formatted]);
+  //     setNewComment("");
+  //   } catch (err) {
+  //     console.error("Failed to post comment:", err);
+  //   }
+  // };
 
-  const handleLikeComment = (commentId: number) => {
-    setComments((prev) =>
-      prev.map((comment) =>
-        comment.id === commentId
-          ? { ...comment, likes: comment.likes + 1 }
-          : comment
-      )
-    );
-  };
+  // const handleLikeComment = (commentId: number) => {
+  //   setComments((prev) =>
+  //     prev.map((comment) =>
+  //       comment.id === commentId
+  //         ? { ...comment, likes: comment.likes + 1 }
+  //         : comment
+  //     )
+  //   );
+  // };
 
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInHours = Math.floor(
-      (now.getTime() - date.getTime()) / (1000 * 60 * 60)
-    );
+  // const formatDate = (dateString: string): string => {
+  //   const date = new Date(dateString);
+  //   const now = new Date();
+  //   const diffInHours = Math.floor(
+  //     (now.getTime() - date.getTime()) / (1000 * 60 * 60)
+  //   );
 
-    if (diffInHours < 1) return "Just now";
-    if (diffInHours < 24) return `${diffInHours}h ago`;
-    if (diffInHours < 48) return "Yesterday";
+  //   if (diffInHours < 1) return "Just now";
+  //   if (diffInHours < 24) return `${diffInHours}h ago`;
+  //   if (diffInHours < 48) return "Yesterday";
 
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    });
-  };
+  //   return date.toLocaleDateString("en-US", {
+  //     month: "short",
+  //     day: "numeric",
+  //   });
+  // };
 
   if (loading) {
     return (
@@ -462,7 +435,7 @@ export default function InvestorProposalDetail() {
   const investorBars = (() => {
     if (!selectedProposal?.contributions) return [];
 
-    const { yourContribution, othersContribution, totalContribution } =
+    const { yourContribution, othersContribution } =
       selectedProposal.contributions;
 
     const bars = [];
