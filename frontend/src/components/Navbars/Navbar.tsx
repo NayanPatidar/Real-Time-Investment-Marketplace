@@ -3,10 +3,16 @@ import { Button } from "../ui/button";
 import { MobileMenu } from "../mobile-menu";
 import { getUserRole, isAuthenticated } from "@/utils/auth";
 import { useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
+import NotificationDropdown from "../NotificationDropdown";
 
 const Navbar = () => {
   const authenticated: boolean | undefined = isAuthenticated();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isHomePage = location.pathname === "/";
+  const isInvestorPage = location.pathname.includes("/investor");
+  const isFounderPage = location.pathname.includes("/founder");
 
   const NavigateToPersonalDashboard = (authenticated: boolean | undefined) => {
     if (!authenticated) return;
@@ -17,6 +23,8 @@ const Navbar = () => {
       navigate("/founder/dashboard");
     } else if (role === "INVESTOR") {
       navigate("/investor/dashboard");
+    } else if (role === "ADMIN") {
+      navigate("/admin/dashboard");
     } else {
       navigate("/");
     }
@@ -27,34 +35,45 @@ const Navbar = () => {
       <div className="container flex h-16 items-center justify-between min-w-screen px-10">
         <div className="flex items-center gap-2 font-bold text-xl text-indigo-700">
           <TrendingUp className="h-5 w-5 text-blue-500" />
-          <a href="#top" className="hover:opacity-80 transition-opacity">
+          <a href="/" className="hover:opacity-80 transition-opacity">
             InvestConnect
           </a>
         </div>
-        <nav className="hidden md:flex gap-6">
-          <a
-            href="#how-it-works"
-            className="text-sm font-medium text-slate-700 hover:text-blue-600 transition-colors"
-          >
-            How It Works
-          </a>
-          <a
-            href="#key-benfits"
-            className="text-sm font-medium text-slate-700 hover:text-blue-600 transition-colors"
-          >
-            Key Benefits
-          </a>
-          <a
-            href="#success-stories"
-            className="text-sm font-medium text-slate-700 hover:text-blue-600 transition-colors"
-          >
-            Success Stories
-          </a>
-        </nav>
+        {isHomePage ? (
+          <nav className="hidden md:flex gap-6">
+            <a
+              href="#how-it-works"
+              className="text-sm font-medium text-slate-700 hover:text-blue-600 transition-colors"
+            >
+              How It Works
+            </a>
+            <a
+              href="#key-benfits"
+              className="text-sm font-medium text-slate-700 hover:text-blue-600 transition-colors"
+            >
+              Key Benefits
+            </a>
+            <a
+              href="#success-stories"
+              className="text-sm font-medium text-slate-700 hover:text-blue-600 transition-colors"
+            >
+              Success Stories
+            </a>
+          </nav>
+        ) : (
+          <h1 className="text-2xl font-bold text-gray-900">
+            {isInvestorPage
+              ? "Investor Dashboard"
+              : isFounderPage
+              ? "Founder Dashboard"
+              : ""}
+          </h1>
+        )}
         <div className="flex items-center gap-4">
           {authenticated ? (
             <>
               {" "}
+              <NotificationDropdown />
               <Button
                 onClick={() => NavigateToPersonalDashboard(authenticated)}
                 className="hidden md:inline-flex bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg transition-all duration-300"
@@ -67,12 +86,15 @@ const Navbar = () => {
             <>
               {" "}
               <a
-                href="/auth"
+                href="/auth/signin"
                 className="text-sm font-medium text-slate-700 hover:text-blue-600 transition-colors hidden md:block"
               >
                 Sign In
               </a>
-              <Button className="hidden md:inline-flex bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg transition-all duration-300">
+              <Button
+                className="hidden md:inline-flex bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg transition-all duration-300"
+                onClick={() => navigate("/auth/signup")}
+              >
                 Get Started
               </Button>
               <MobileMenu />

@@ -7,6 +7,7 @@ export const createProposal = async (data: {
   title: string;
   description: string;
   fundingGoal: number;
+  category: string;
 }) => {
   const res = await instance.post("/proposals", data);
   return res.data;
