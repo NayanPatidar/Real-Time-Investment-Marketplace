@@ -1,4 +1,4 @@
-import React, { JSX, useEffect, useState } from "react";
+import { JSX, useEffect, useState } from "react";
 import {
   Search,
   Filter,
@@ -86,6 +86,7 @@ export default function InvestorDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("ALL");
   const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
 
   const [stats, setStats] = useState({
     totalInvested: 0,
@@ -164,6 +165,8 @@ export default function InvestorDashboard() {
         });
       } catch (error) {
         console.error("Failed to fetch proposals:", error);
+      } finally {
+        setLoading(false); // ✅ Done loading
       }
     };
 
@@ -249,6 +252,14 @@ export default function InvestorDashboard() {
       );
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-gray-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

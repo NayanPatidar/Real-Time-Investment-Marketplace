@@ -3,7 +3,6 @@ import { PlusCircle, FileText, LogOut, TrendingUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createProposal, getMyProposals } from "@/api/proposal";
 import { logout } from "@/utils/auth";
-import { logoutFunc } from "@/api/auth";
 import NotificationDropdown from "@/components/NotificationDropdown";
 
 interface Proposal {
@@ -18,7 +17,7 @@ interface Proposal {
 export default function FounderDashboard() {
   const navigate = useNavigate();
   const [proposals, setProposals] = useState<Proposal[]>([]);
-
+  const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newProposal, setNewProposal] = useState({
     title: "",
@@ -61,6 +60,8 @@ export default function FounderDashboard() {
         setProposals(data);
       } catch (error) {
         console.error("Failed to fetch proposals:", error);
+      } finally {
+        setLoading(false); // Done loading
       }
     };
 
@@ -68,16 +69,16 @@ export default function FounderDashboard() {
   }, []);
 
   const handleLogout = async () => {
-    try {
-      const response = await logoutFunc();
-      if (response) {
-        logout();
-      }
-    } catch (error) {
-      console.error("Logout failed:", error);
-      alert("Failed to log out. Please try again.");
-    }
+    logout();
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-gray-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

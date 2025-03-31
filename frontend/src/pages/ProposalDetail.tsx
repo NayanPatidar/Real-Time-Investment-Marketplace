@@ -71,7 +71,13 @@ export default function ProposalDetail() {
 
   const totalFunding = proposal?.fundingGoal ?? 1;
 
-  if (!proposal) return <p className="p-6">Loading proposal...</p>;
+  if (!proposal) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-gray-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

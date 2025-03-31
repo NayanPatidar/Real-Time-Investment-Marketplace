@@ -23,12 +23,9 @@ import {
   Cell,
   LineChart,
   Line,
-  AreaChart,
-  Area,
 } from "recharts";
-import { fetchProposals, fetchUsers } from "@/api/admin";
+import { fetchProposals, fetchUsers, updateProposalStatus } from "@/api/admin";
 import { logout } from "@/utils/auth";
-import { updateProposalStatus } from "@/api/proposal";
 import NotificationDropdown from "@/components/NotificationDropdown";
 
 // Define types
@@ -68,9 +65,6 @@ export default function AdminDashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [monthlyData, setMonthlyData] = useState<any[]>([]);
-  const [categoryData, setCategoryData] = useState<any[]>([]);
-  const [statusData, setStatusData] = useState<any[]>([]);
 
   const [investorChartData, setInvestorChartData] = useState<any[]>([]);
   const [proposalStatusData, setProposalStatusData] = useState<any[]>([]);
@@ -491,7 +485,7 @@ export default function AdminDashboard() {
                                 `${name} ${(percent * 100).toFixed(0)}%`
                               }
                             >
-                              {categoryDistributionData.map((entry, index) => (
+                              {categoryDistributionData.map((_, index) => (
                                 <Cell
                                   key={`cell-${index}`}
                                   fill={COLORS[index % COLORS.length]}
@@ -499,7 +493,7 @@ export default function AdminDashboard() {
                               ))}
                             </Pie>
                             <Tooltip
-                              formatter={(value, name, props) => [
+                              formatter={(value, _, props) => [
                                 value,
                                 props.payload.name,
                               ]}

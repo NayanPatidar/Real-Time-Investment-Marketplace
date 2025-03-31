@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { LogIn, UserPlus } from "lucide-react";
 import SignUp from "@/components/Signup";
 import SignIn from "@/components/SignIn";
