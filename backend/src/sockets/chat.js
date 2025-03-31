@@ -1,5 +1,6 @@
 const prisma = require("../config/prisma");
 const jwt = require("jsonwebtoken");
+const client = require("../config/redis-config");
 
 const getRoomId = (id1, id2) =>
   [id1, id2]
@@ -72,6 +73,14 @@ const setupChat = (io) => {
             chatRoomId: roomId,
           },
         });
+
+        await client.rPush(
+          `chat:${roomId}`,
+          JSON.stringify({
+            ...message,
+            timestamp: Date.now(),
+          })
+        );
 
         console.log(`✅ Message sent (ID: ${message.id}) to room ${roomId}`);
 

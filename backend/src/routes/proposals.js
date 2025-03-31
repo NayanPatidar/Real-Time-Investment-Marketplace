@@ -3,12 +3,13 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const prisma = require("../config/prisma");
 const { restrictTo, authenticateToken } = require("../middleware/auth");
+const client = require("../config/redis-config");
 const router = express.Router();
 
 // Only founders can create proposals
 router.post("/", authenticateToken, restrictTo("FOUNDER"), async (req, res) => {
-  const { title, description, fundingGoal } = req.body;
-  if (!title || !description || !fundingGoal) {
+  const { title, description, fundingGoal, category } = req.body;
+  if (!title || !description || !fundingGoal || !category) {
     return res.status(400).json({ message: "Missing required fields" });
   }
   try {
@@ -18,6 +19,7 @@ router.post("/", authenticateToken, restrictTo("FOUNDER"), async (req, res) => {
         description,
         fundingGoal: parseFloat(fundingGoal),
         founderId: req.user.id,
+        category,
       },
     });
     res.status(201).json(proposal);
@@ -80,10 +82,12 @@ router.get(
         },
       });
 
-      res.json({
+      const responseData = {
         proposals: enrichedProposals,
         investorStats,
-      });
+      };
+
+      res.json(responseData);
     } catch (error) {
       console.error("Fetch proposals error:", error);
       res.status(500).json({ message: "Error fetching proposals" });
@@ -127,7 +131,10 @@ router.get(
 router.get("/comments/:id", authenticateToken, async (req, res) => {
   try {
     const comments = await prisma.comment.findMany({
-      where: { proposalId: parseInt(req.params.id) },
+      where: { 
+        proposalId: parseInt(req.params.id),
+        parentId: null // Only fetch top-level comments
+      },
       orderBy: { createdAt: "asc" },
       include: {
         user: {
@@ -137,6 +144,19 @@ router.get("/comments/:id", authenticateToken, async (req, res) => {
             role: true,
             name: true,
           },
+        },
+        replies: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                role: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: { createdAt: "asc" },
         },
       },
     });
@@ -149,7 +169,7 @@ router.get("/comments/:id", authenticateToken, async (req, res) => {
 });
 
 router.post("/comments/:id", authenticateToken, async (req, res) => {
-  const { content } = req.body;
+  const { content, parentId } = req.body;
 
   if (!content || content.trim().length === 0) {
     return res.status(400).json({ message: "Comment cannot be empty" });
@@ -161,6 +181,7 @@ router.post("/comments/:id", authenticateToken, async (req, res) => {
         content,
         userId: req.user.id,
         proposalId: parseInt(req.params.id),
+        parentId: parentId || null,
       },
       include: {
         user: {
@@ -268,7 +289,7 @@ router.put(
   restrictTo("INVESTOR", "ADMIN"),
   async (req, res) => {
     const { status } = req.body;
-    const { id } = req.params;
+    const { id } = req.params;    
     if (!["UNDER_REVIEW" | "NEGOTIATING" | "FUNDED"].includes(status)) {
       return res.status(400).json({ message: "Invalid status" });
     }
@@ -390,15 +411,14 @@ router.post(
         where: { id: proposalId },
         data: {
           currentFunding: newTotal,
+          status:
+            newTotal >= proposal.fundingGoal
+              ? "FUNDED"
+              : proposal.status === "UNDER_REVIEW"
+              ? "NEGOTIATING"
+              : proposal.status,
         },
       });
-
-      if (myproposal?.status === "UNDER_REVIEW") {
-        await prisma.proposal.update({
-          where: { id: parseInt(proposalId) },
-          data: { status: "NEGOTIATING" },
-        });
-      }
 
       // Step 7: Update total investment for user
       await prisma.user.update({
@@ -415,6 +435,8 @@ router.post(
           content: `${req.user.name} has invested $${amount} in your proposal "${proposal.title}"`,
         },
       });
+
+      await client.del(`notifications:${proposal.founderId}`);
 
       req.io.to(`user:${proposal.founderId}`).emit("notification", {
         message: `${req.user.name} has invested $${amount}`,
@@ -453,7 +475,17 @@ router.get(
       .sort((a, b) => a - b)
       .join("_")}`;
 
+    const redisKey = `chat:${chatRoomId}`;
+
     try {
+      // 1️⃣ Try fetching from Redis
+      const cachedMessages = await client.lRange(redisKey, 0, -1);
+      if (cachedMessages.length > 0) {
+        const messages = cachedMessages.map((msg) => JSON.parse(msg));
+        return res.status(200).json(messages);
+      }
+
+      // 2️⃣ Fallback: Fetch from Prisma (PostgreSQL)
       const messages = await prisma.message.findMany({
         where: {
           proposalId,
@@ -482,9 +514,18 @@ router.get(
         },
       });
 
+      if (messages.length > 0) {
+        const pipeline = client.multi();
+        messages.forEach((msg) =>
+          pipeline.rPush(redisKey, JSON.stringify(msg))
+        );
+        pipeline.expire(redisKey, 3600); // Optional TTL: 1 hour
+        await pipeline.exec();
+      }
+
       res.status(200).json(messages);
     } catch (error) {
-      console.error("Error fetching messages:", error);
+      console.error("❌ Error fetching messages:", error);
       res.status(500).json({ message: "Failed to fetch messages" });
     }
   }
