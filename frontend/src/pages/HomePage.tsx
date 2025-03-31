@@ -7,21 +7,37 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Navbar from "@/components/Navbars/Navbar";
 import { getUserRole, isAuthenticated } from "@/utils/auth";
+import HomePageAnimation from "@/assets/HomePageAnimation.json";
+import Lottie from "lottie-react";
 
 export default function InvestmentPlatform() {
   const navigate = useNavigate();
   const authenticated: boolean | undefined = isAuthenticated();
-  const NavigateToPersonalDashboard = (authenticated: boolean | undefined) => {
-    if (!authenticated) return;
+  const NavigateToPersonalDashboard = (
+    authenticated: boolean | undefined,
+    call: "founder" | "investor"
+  ) => {
+    if (!authenticated) {
+      console.log(call);
+
+      if (call == "investor") {
+        navigate("/auth/signup/INVESTOR");
+        return;
+      }
+      navigate("/auth/signup");
+      return;
+    }
 
     const role = getUserRole();
 
-    if (role === "FOUNDER") {
+    if (role === "FOUNDER" && call === "founder") {
       navigate("/founder/dashboard");
-    } else if (role === "INVESTOR") {
+    } else if (role === "INVESTOR" && call === "investor") {
       navigate("/investor/dashboard");
-    } else {
-      navigate("/");
+    } else if (role === "FOUNDER" && call === "investor") {
+      navigate("/auth/signup/INVESTOR");
+    } else if (role === "INVESTOR" && call === "founder") {
+      navigate("/auth/signup");
     }
   };
 
@@ -56,6 +72,9 @@ export default function InvestmentPlatform() {
                 <Button
                   size="lg"
                   className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
+                  onClick={() =>
+                    NavigateToPersonalDashboard(authenticated, "investor")
+                  }
                 >
                   Join as Investor
                 </Button>
@@ -63,7 +82,9 @@ export default function InvestmentPlatform() {
                   size="lg"
                   variant="outline"
                   className="bg-white/10 backdrop-blur-sm border-white/30 text-white hover:bg-white/20 hover:border-white/40 transition-all duration-300"
-                  onClick={() => NavigateToPersonalDashboard(authenticated)}
+                  onClick={() =>
+                    NavigateToPersonalDashboard(authenticated, "founder")
+                  }
                 >
                   Submit Your Startup
                 </Button>
@@ -71,20 +92,7 @@ export default function InvestmentPlatform() {
             </div>
             <div className="relative h-[400px] w-full rounded-xl overflow-hidden shadow-2xl transform transition-all duration-500 hover:scale-[1.02] group">
               <div className="absolute inset-0 bg-gradient-to-tr from-blue-600/80 to-indigo-600/80 group-hover:opacity-90 transition-opacity duration-500"></div>
-              <img
-                src="/api/placeholder/800/600"
-                alt="Investment platform visualization"
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                <div className="bg-white/10 backdrop-blur-md rounded-lg p-4 text-white text-center max-w-xs">
-                  <Rocket className="h-8 w-8 mx-auto mb-2" />
-                  <p className="font-medium">
-                    Discover how we've helped 1000+ startups raise over $500M in
-                    funding
-                  </p>
-                </div>
-              </div>
+              <Lottie animationData={HomePageAnimation} loop={true} />
             </div>
           </div>
         </section>

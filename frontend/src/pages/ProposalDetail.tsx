@@ -2,15 +2,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbars/Navbar";
 import { getProposalById } from "@/api/proposal";
-import {
-  getProposalInvestors,
-  getInvestorContributions,
-} from "@/api/chatService";
-import FounderCommentsSection from "@/components/FounderCommentsSection";
+import { getInvestorContributions } from "@/api/chatService";
+import FounderCommentsSection from "@/components/CommentsSection";
 import ChatInterface from "@/components/InvestorFounderChat";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 
 interface Proposal {
   id: string;
@@ -119,24 +115,30 @@ export default function ProposalDetail() {
             <h2 className="text-sm font-medium text-gray-500 mb-2">
               Funding Progress
             </h2>
-            <div className="w-full h-4 rounded-full bg-gray-200 relative">
+            <div className="w-full h-4 rounded-full bg-gray-200 relative overflow-hidden">
               {investors.map((inv, index) => {
                 const percent = (inv.contribution / totalFunding) * 100;
+                const left = investors
+                  .slice(0, index)
+                  .reduce(
+                    (acc, i) => acc + (i.contribution / totalFunding) * 100,
+                    0
+                  );
+
+                const isFirst = index === 0;
+                const isLast = index === investors.length - 1;
+
                 return (
                   <div
                     key={inv.id}
                     style={{
                       width: `${percent}%`,
+                      left: `${left}%`,
                       backgroundColor: inv.color,
-                      left: `${investors
-                        .slice(0, index)
-                        .reduce(
-                          (acc, i) =>
-                            acc + (i.contribution / totalFunding) * 100,
-                          0
-                        )}%`,
                     }}
-                    className="absolute h-full"
+                    className={`absolute h-full ${
+                      isFirst ? "rounded-l-full" : ""
+                    } ${isLast ? "rounded-r-full" : ""}`}
                   />
                 );
               })}

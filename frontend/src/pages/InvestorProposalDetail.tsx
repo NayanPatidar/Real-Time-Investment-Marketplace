@@ -1,6 +1,6 @@
 import { useParams } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { getProposalById } from "@/api/proposal";
+import { JSX, useEffect, useState } from "react";
+import { getProposalById, investInProposal } from "@/api/proposal";
 import Navbar from "@/components/Navbars/Navbar";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,34 +11,105 @@ import {
   Briefcase,
   TrendingUp,
   AlertCircle,
-  Send,
-  ThumbsUp,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import { getProposalComments, postProposalComment } from "@/api/comment";
 import ChatInterface from "@/components/InvestorFounderChat";
 import useAuth from "@/hooks/useAuth";
+import { toast } from "sonner";
+import { createRazorpayOrder } from "@/api/payment";
+import { loadRazorpayScript } from "@/utils/razorpay";
+import FounderCommentsSection from "@/components/CommentsSection";
 
-interface Proposal {
+interface Investor {
+  id: number;
+  name: string;
+  email: string;
+}
+
+interface AcceptedInvestor {
+  id: number;
+  proposalId: number;
+  investorId: number;
+  contribution: number;
+  createdAt: string;
+  investor: Investor;
+}
+
+interface AllInvestor {
+  id: number;
+  name: string;
+  email: string;
+  contribution: number;
+}
+
+interface Founder {
+  id: number;
+  name: string;
+  email: string;
+}
+
+interface Investor {
+  id: number;
+  name: string;
+  email: string;
+}
+
+interface AcceptedInvestor {
+  id: number;
+  proposalId: number;
+  investorId: number;
+  contribution: number;
+  createdAt: string;
+  investor: Investor;
+}
+
+interface AllInvestor {
+  id: number;
+  name: string;
+  email: string;
+  contribution: number;
+}
+
+interface Founder {
+  id: number;
+  name: string;
+  email: string;
+}
+
+interface Contributions {
+  yourContribution: number;
+  othersContribution: number;
+  totalContribution: number;
+}
+
+export interface Proposal {
   id: number;
   title: string;
   description: string;
   fundingGoal: number;
   currentFunding: number;
-  investorContribution: number;
-  status: string;
+  status: "UNDER_REVIEW" | "NEGOTIATING" | "FUNDED";
   createdAt: string;
-  founder: {
-    name?: string;
-    email: string;
-    id: number;
-  };
+  founder: Founder;
+  acceptedInvestors: AcceptedInvestor[];
+  contributions: Contributions;
+}
+
+const COLORS = [
+  "#6366f1", // Indigo
+  "#f59e0b", // Amber
+  "#10b981", // Emerald
+  "#3b82f6", // Blue
+  "#ef4444", // Red
+  "#a855f7", // Purple
+];
+
+function getColorForInvestor(id: number) {
+  return COLORS[id % COLORS.length];
 }
 
 export default function InvestorProposalDetail() {
@@ -74,6 +145,12 @@ export default function InvestorProposalDetail() {
   ]);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const { user, token } = useAuth();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(
+    null
+  );
+  const [investmentAmount, setInvestmentAmount] = useState("");
+  const [refetch, setRefetch] = useState(false);
 
   useEffect(() => {
     const fetchProposal = async () => {
@@ -99,7 +176,7 @@ export default function InvestorProposalDetail() {
               avatar: "/avatars/default.jpg", // fallback
             },
             content: c.content,
-            timestamp: c.createdAt,
+            timestamp: c.timestamp,
             likes: 0,
           })
         );
@@ -113,7 +190,100 @@ export default function InvestorProposalDetail() {
       fetchProposal();
       fetchComments();
     }
-  }, [id]);
+  }, [id, refetch]);
+
+  const handleInvest = async (razorpayResponse: any) => {
+    if (!selectedProposal) return;
+
+    try {
+      const payload = {
+        proposalId: selectedProposal.id,
+        amount: parseFloat(investmentAmount),
+        paymentId: razorpayResponse?.razorpay_payment_id, // Include Razorpay payment ID
+      };
+
+      await investInProposal(payload);
+
+      // setProposals(updatedProposals);
+      setInvestmentAmount("");
+      setIsModalOpen(false);
+      setRefetch((prev) => !prev);
+
+      toast.success(
+        `Investment of $${investmentAmount} successful! Transaction ID: ${razorpayResponse?.razorpay_payment_id}`,
+        {
+          duration: 3000,
+          style: {
+            background: "#fff",
+            color: "#000",
+            padding: "16px",
+            borderRadius: "8px",
+            boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+          },
+          icon: <DollarSign size={24} color="#4ade80" />,
+        }
+      );
+    } catch (error) {
+      console.error("Failed to make investment:", error);
+      alert("Something went wrong with your investment. Please try again.");
+    }
+  };
+
+  const handleRazorpayPayment = async () => {
+    try {
+      const isLoaded = await loadRazorpayScript();
+      if (!isLoaded) {
+        alert("Failed to load Razorpay SDK. Are you online?");
+        return;
+      }
+
+      // Check if Razorpay is available in the global scope
+      if (!(window as any).Razorpay) {
+        console.error("Razorpay not found in window object");
+        alert("Payment system not available. Please try again later.");
+        return;
+      }
+
+      const orderData = await createRazorpayOrder(
+        parseInt(investmentAmount) * 100
+      );
+
+      const options = {
+        key: "rzp_test_PvloIqjs8bEFo3",
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: "IMS",
+        description: "Payment for investment",
+        order_id: orderData.id,
+        handler: async function (response: any) {
+          toast.success(
+            `Payment successful! Transaction ID: ${response.razorpay_payment_id}`
+          );
+          await handleInvest(response);
+        },
+        prefill: {
+          name: "Investor Name",
+          email: "investor@example.com",
+        },
+        theme: {
+          color: "#6366f1",
+        },
+        modal: {
+          ondismiss: function () {
+            toast.error("Payment process was cancelled.");
+          },
+        },
+      };
+
+      console.log("About to initialize Razorpay with options:", options);
+      const rzp = new (window as any).Razorpay(options);
+      console.log("Razorpay instance created:", rzp);
+      rzp.open();
+    } catch (error) {
+      console.error("Payment error:", error);
+      toast.error("Payment failed. Please try again.");
+    }
+  };
 
   useEffect(() => {
     const fetchProposal = async () => {
@@ -141,6 +311,13 @@ export default function InvestorProposalDetail() {
     likes: number;
   }
 
+  const openInvestModal = (proposal: Proposal) => {
+    console.log("Opening invest modal for proposal:", proposal);
+
+    setSelectedProposal(proposal);
+    setIsModalOpen(true);
+  };
+
   const handleSubmitComment = async () => {
     if (!newComment.trim()) return;
 
@@ -155,7 +332,7 @@ export default function InvestorProposalDetail() {
           avatar: "/avatars/you.jpg",
         },
         content: created.content,
-        timestamp: created.createdAt,
+        timestamp: created.timestamp,
         likes: 0,
       };
 
@@ -235,11 +412,13 @@ export default function InvestorProposalDetail() {
     description,
     fundingGoal,
     currentFunding,
-    investorContribution,
+    contributions,
     status,
     createdAt,
     founder,
   } = proposal;
+
+  const yourContribution = contributions?.yourContribution ?? 0;
 
   const fundingProgress = (currentFunding / fundingGoal) * 100;
 
@@ -278,6 +457,66 @@ export default function InvestorProposalDetail() {
   };
 
   const recipient = getChatRecipient();
+  console.log(selectedProposal);
+
+  const investorBars = (() => {
+    if (!selectedProposal?.contributions) return [];
+
+    const { yourContribution, othersContribution, totalContribution } =
+      selectedProposal.contributions;
+
+    const bars = [];
+    let offset = 0;
+
+    if (yourContribution > 0) {
+      const widthPercent =
+        (yourContribution / selectedProposal.fundingGoal) * 100;
+      console.log(
+        "Your Contribution:",
+        yourContribution,
+        "Width %:",
+        widthPercent.toFixed(2)
+      );
+      bars.push(
+        <div
+          key="you"
+          className="absolute h-full top-0"
+          style={{
+            width: `${widthPercent}%`,
+            left: `${offset}%`,
+            backgroundColor: "#22c55e", // green
+            zIndex: 20,
+          }}
+        />
+      );
+      offset += widthPercent;
+    }
+
+    if (othersContribution > 0) {
+      const widthPercent =
+        (othersContribution / selectedProposal.fundingGoal) * 100;
+      console.log(
+        "Others Contribution:",
+        othersContribution,
+        "Width %:",
+        widthPercent.toFixed(2)
+      );
+      bars.push(
+        <div
+          key="others"
+          className="absolute h-full top-0"
+          style={{
+            width: `${widthPercent}%`,
+            left: `${offset}%`,
+            backgroundColor: "#3b82f6", // blue
+            zIndex: 10,
+          }}
+        />
+      );
+    }
+
+    return bars;
+  })();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -307,7 +546,13 @@ export default function InvestorProposalDetail() {
                     </div>
                   </div>
 
-                  <Button className="bg-indigo-600 hover:bg-indigo-700 shadow-lg">
+                  <Button
+                    className="bg-indigo-600 hover:bg-indigo-700 shadow-lg"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openInvestModal(proposal);
+                    }}
+                  >
                     <DollarSign className="mr-2 h-4 w-4" /> Invest Now
                   </Button>
                 </div>
@@ -328,12 +573,12 @@ export default function InvestorProposalDetail() {
                   </div>
                   <Progress value={fundingProgress} className="h-2" />
 
-                  {investorContribution > 0 && (
+                  {yourContribution > 0 && (
                     <div className="mt-3 p-3 bg-green-50 border border-green-100 rounded-md flex items-center">
                       <TrendingUp className="h-5 w-5 text-green-600 mr-2" />
                       <div className="text-green-700 font-medium">
                         Your investment: $
-                        {(investorContribution as number).toLocaleString()}
+                        {(yourContribution as number).toLocaleString()}
                       </div>
                     </div>
                   )}
@@ -379,101 +624,14 @@ export default function InvestorProposalDetail() {
 
                   <TabsContent value="comments">
                     <div className="space-y-6">
-                      {/* New comment form */}
-                      <div className="bg-white p-4 rounded-lg border">
-                        <h4 className="text-md font-medium text-gray-700 mb-3">
-                          Add a comment
-                        </h4>
-                        <div className="flex gap-3">
-                          <Avatar>
-                            <AvatarImage
-                              src="/avatars/you.jpg"
-                              alt="Your avatar"
-                            />
-                            <AvatarFallback>YO</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 space-y-3">
-                            <Textarea
-                              placeholder="Share your thoughts or ask a question..."
-                              className="min-h-24 resize-none"
-                              value={newComment}
-                              onChange={(e) => setNewComment(e.target.value)}
-                            />
-                            <div className="flex justify-end">
-                              <Button
-                                onClick={handleSubmitComment}
-                                disabled={!newComment.trim()}
-                              >
-                                <Send className="mr-2 h-4 w-4" />
-                                Post Comment
-                              </Button>
-                            </div>
-                          </div>
+                      <div className="bg-white rounded-lg ">
+                        <h4 className="text-md font-medium text-gray-700 mb-4"></h4>
+                        <div>
+                          <h2 className="text-xl font-semibold text-gray-800 mb-2">
+                            Comments
+                          </h2>
+                          <FounderCommentsSection proposalId={String(proposal.id)} />
                         </div>
-                      </div>
-
-                      {/* Comment list */}
-                      <div className="bg-white p-4 rounded-lg border">
-                        <h4 className="text-md font-medium text-gray-700 mb-4">
-                          Comments ({comments.length})
-                        </h4>
-
-                        {comments.length === 0 ? (
-                          <div className="text-center py-6 text-gray-500">
-                            <p>No comments yet. Be the first to comment!</p>
-                          </div>
-                        ) : (
-                          <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
-                            {comments.map((comment, index) => (
-                              <div key={comment.id}>
-                                {index > 0 && <Separator className="my-4" />}
-                                <div className="flex gap-3">
-                                  <Avatar>
-                                    <AvatarImage
-                                      src={comment.author.avatar}
-                                      alt={comment.author.name}
-                                    />
-                                    <AvatarFallback>
-                                      {comment.author.name.charAt(0)}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <div className="flex-1">
-                                    <div className="flex justify-between">
-                                      <div>
-                                        <h5 className="font-medium text-gray-800">
-                                          {comment.author.name}
-                                        </h5>
-                                        <p className="text-xs text-gray-500">
-                                          {comment.author.role} •{" "}
-                                          {formatDate(comment.timestamp)}
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <p className="mt-2 text-gray-700">
-                                      {comment.content}
-                                    </p>
-                                    <div className="mt-2 flex items-center">
-                                      <button
-                                        className="flex items-center text-xs text-gray-500 hover:text-indigo-600"
-                                        onClick={() =>
-                                          handleLikeComment(comment.id)
-                                        }
-                                      >
-                                        <ThumbsUp className="h-3 w-3 mr-1" />
-                                        {comment.likes > 0
-                                          ? comment.likes
-                                          : "Like"}
-                                      </button>
-                                      <button className="ml-4 text-xs text-gray-500 hover:text-indigo-600">
-                                        Reply
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     </div>
                   </TabsContent>
@@ -495,11 +653,11 @@ export default function InvestorProposalDetail() {
                 <CardTitle className="text-lg">Investment Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Button className="w-full bg-indigo-600 hover:bg-indigo-700">
-                  <DollarSign className="mr-2 h-4 w-4" />
-                  Invest Now
-                </Button>
-                <Button variant="outline" className="w-full">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setIsChatOpen(true)}
+                >
                   <MessageCircle className="mr-2 h-4 w-4" />
                   Chat with Founder
                 </Button>
@@ -538,6 +696,126 @@ export default function InvestorProposalDetail() {
           </div>
         </div>
       </main>
+
+      {isModalOpen && selectedProposal && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-xl w-full p-6">
+            <h2 className="text-xl font-bold mb-4">
+              Invest in {selectedProposal.title}
+            </h2>
+            <div className="mb-6">
+              <p className="text-sm text-gray-500 mb-2">Current Funding</p>
+              <div className="flex justify-between items-center mb-2">
+                <p className="font-medium">
+                  ${selectedProposal?.currentFunding?.toLocaleString()} of $
+                  {selectedProposal?.fundingGoal?.toLocaleString()}
+                </p>
+                <p className="text-sm text-gray-500">
+                  {Math.round(
+                    (selectedProposal?.currentFunding /
+                      selectedProposal?.fundingGoal) *
+                      100
+                  )}
+                  % funded
+                </p>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div className="w-full bg-gray-200 rounded-full h-2.5 relative overflow-hidden">
+                  {investorBars}
+                </div>
+              </div>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleRazorpayPayment();
+              }}
+              className="space-y-4"
+            >
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="investmentAmount"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Investment Amount (USD)
+                </label>
+                <div className="relative mt-1 rounded-md shadow-sm">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                    <span className="text-gray-500 sm:text-sm">$</span>
+                  </div>
+                  <input
+                    type="number"
+                    id="investmentAmount"
+                    required
+                    min="10"
+                    max={
+                      selectedProposal.fundingGoal -
+                      selectedProposal.currentFunding
+                    }
+                    step="0.01"
+                    className="block w-full rounded-md border-gray-300 py-2 pl-7 pr-12 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                    placeholder="0.00"
+                    value={investmentAmount}
+                    onChange={(e) => setInvestmentAmount(e.target.value)}
+                  />
+                </div>
+                <p className="text-sm text-gray-500 mt-1">
+                  Minimum investment: $10
+                </p>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-md">
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">
+                    Investment Summary
+                  </h4>
+                  <div className="text-sm">
+                    <div className="flex justify-between">
+                      <span>Investment Amount</span>
+                      <span className="text-right">
+                        $
+                        {investmentAmount
+                          ? parseFloat(investmentAmount).toLocaleString()
+                          : "0.00"}
+                      </span>
+                    </div>
+                    <hr className="my-2 border-gray-200" />
+                    <div className="flex justify-between font-medium">
+                      <span>Total</span>
+                      <span className="text-right">
+                        $
+                        {investmentAmount
+                          ? (
+                              parseFloat(investmentAmount) * 1.0
+                            ).toLocaleString()
+                          : "0.00"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                  >
+                    Confirm Investment
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {recipient && (
         <div className="fixed bottom-4 right-4 z-50">

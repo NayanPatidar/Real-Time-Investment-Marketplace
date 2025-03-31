@@ -6,11 +6,17 @@ import {
   TrendingUp,
   DollarSign,
   BarChart2,
+  Clock,
+  User,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { logout } from "@/utils/auth";
 import { getAllProposals, investInProposal } from "@/api/proposal";
+import { loadRazorpayScript } from "@/utils/razorpay";
 import useAuth from "@/hooks/useAuth";
+import { logoutFunc } from "@/api/auth";
+import { createRazorpayOrder } from "@/api/payment";
+import { toast } from "sonner";
 
 interface Investor {
   id: number;
@@ -87,6 +93,62 @@ export default function InvestorDashboard() {
     averageReturn: 15.2,
   });
 
+  const handleRazorpayPayment = async () => {
+    try {
+      const isLoaded = await loadRazorpayScript();
+      if (!isLoaded) {
+        alert("Failed to load Razorpay SDK. Are you online?");
+        return;
+      }
+
+      // Check if Razorpay is available in the global scope
+      if (!(window as any).Razorpay) {
+        console.error("Razorpay not found in window object");
+        alert("Payment system not available. Please try again later.");
+        return;
+      }
+
+      const orderData = await createRazorpayOrder(
+        parseInt(investmentAmount) * 100
+      );
+
+      const options = {
+        key: "rzp_test_PvloIqjs8bEFo3",
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: "IMS",
+        description: "Payment for investment",
+        order_id: orderData.id,
+        handler: async function (response: any) {
+          toast.success(
+            `Payment successful! Transaction ID: ${response.razorpay_payment_id}`
+          );
+          await handleInvest(response);
+        },
+        prefill: {
+          name: "Investor Name",
+          email: "investor@example.com",
+        },
+        theme: {
+          color: "#6366f1",
+        },
+        modal: {
+          ondismiss: function () {
+            toast.error("Payment process was cancelled.");
+          },
+        },
+      };
+
+      console.log("About to initialize Razorpay with options:", options);
+      const rzp = new (window as any).Razorpay(options);
+      console.log("Razorpay instance created:", rzp);
+      rzp.open();
+    } catch (error) {
+      console.error("Payment error:", error);
+      toast.error("Payment failed. Please try again.");
+    }
+  };
+
   useEffect(() => {
     const fetchProposals = async () => {
       try {
@@ -102,7 +164,6 @@ export default function InvestorDashboard() {
         });
       } catch (error) {
         console.error("Failed to fetch proposals:", error);
-        alert("Unable to load investment opportunities.");
       }
     };
 
@@ -122,8 +183,16 @@ export default function InvestorDashboard() {
     setFilteredProposals(results);
   }, [searchTerm, filterStatus, proposals]);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    try {
+      const response = await logoutFunc();
+      if (response) {
+        logout();
+      }
+    } catch (error) {
+      console.error("Logout failed:", error);
+      alert("Failed to log out. Please try again.");
+    }
   };
 
   const openInvestModal = (proposal: Proposal) => {
@@ -133,20 +202,18 @@ export default function InvestorDashboard() {
     setIsModalOpen(true);
   };
 
-  const handleInvest = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const handleInvest = async (razorpayResponse: any) => {
     if (!selectedProposal) return;
 
     try {
       const payload = {
         proposalId: selectedProposal.id,
         amount: parseFloat(investmentAmount),
+        paymentId: razorpayResponse?.razorpay_payment_id, // Include Razorpay payment ID
       };
 
-      await investInProposal(payload);
+      await investInProposal(payload); // Your existing API call
 
-      // Update the proposal in the list
       const updatedProposals = proposals.map((p) => {
         if (p.id === selectedProposal.id) {
           return {
@@ -161,10 +228,25 @@ export default function InvestorDashboard() {
       setInvestmentAmount("");
       setIsModalOpen(false);
 
-      alert("Investment successful!");
+      toast.success(
+        `Investment of $${investmentAmount} successful! Transaction ID: ${razorpayResponse?.razorpay_payment_id}`,
+        {
+          duration: 3000,
+          style: {
+            background: "#fff",
+            color: "#000",
+            padding: "16px",
+            borderRadius: "8px",
+            boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+          },
+          icon: <DollarSign size={24} color="#4ade80" />,
+        }
+      );
     } catch (error) {
       console.error("Failed to make investment:", error);
-      alert("Something went wrong with your investment. Please try again.");
+      toast.error(
+        "Something went wrong with your investment. Please try again."
+      );
     }
   };
 
@@ -190,9 +272,23 @@ export default function InvestorDashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Section */}
+        {/* Header with Analytics Button */}
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-2xl font-bold text-gray-900">
+            Investment Portfolio
+          </h1>
+          <button
+            onClick={() => navigate("/investor/analytics")}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+          >
+            <BarChart2 size={18} />
+            <span>Analytics Dashboard</span>
+          </button>
+        </div>
+
+        {/* Stats Section - Redesigned with improved visuals */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-lg shadow">
+          <div className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-shadow">
             <div className="flex items-center">
               <div className="p-3 rounded-full bg-blue-100 text-blue-600 mr-4">
                 <DollarSign size={24} />
@@ -206,9 +302,20 @@ export default function InvestorDashboard() {
                 </p>
               </div>
             </div>
+            <div className="mt-4 h-1 w-full bg-gray-200 rounded">
+              <div
+                className="h-1 bg-blue-600 rounded"
+                style={{
+                  width: `${Math.min(
+                    100,
+                    (stats.totalInvested / 1000000) * 100
+                  )}%`,
+                }}
+              />
+            </div>
           </div>
 
-          <div className="bg-white p-6 rounded-lg shadow">
+          <div className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-shadow">
             <div className="flex items-center">
               <div className="p-3 rounded-full bg-green-100 text-green-600 mr-4">
                 <BarChart2 size={24} />
@@ -220,9 +327,21 @@ export default function InvestorDashboard() {
                 <p className="text-2xl font-bold">{stats.activeInvestments}</p>
               </div>
             </div>
+            <div className="mt-4 flex space-x-1">
+              {Array.from({
+                length: Math.min(10, stats.activeInvestments),
+              }).map((_, i) => (
+                <div key={i} className="h-1 flex-1 bg-green-600 rounded" />
+              ))}
+              {Array.from({
+                length: Math.max(0, 10 - Math.min(10, stats.activeInvestments)),
+              }).map((_, i) => (
+                <div key={i} className="h-1 flex-1 bg-gray-200 rounded" />
+              ))}
+            </div>
           </div>
 
-          <div className="bg-white p-6 rounded-lg shadow">
+          <div className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-shadow">
             <div className="flex items-center">
               <div className="p-3 rounded-full bg-purple-100 text-purple-600 mr-4">
                 <TrendingUp size={24} />
@@ -234,10 +353,60 @@ export default function InvestorDashboard() {
                 <p className="text-2xl font-bold">{stats.averageReturn}%</p>
               </div>
             </div>
+            <div className="mt-4 h-1 w-full bg-gray-200 rounded">
+              <div
+                className="h-1 bg-purple-600 rounded"
+                style={{ width: `${Math.min(100, stats.averageReturn * 5)}%` }}
+              />
+            </div>
           </div>
         </div>
 
-        {/* Search and Filter */}
+        {/* Quick View Buttons */}
+        <div className="flex gap-4 mb-6 overflow-x-auto pb-2">
+          <button
+            className={`px-4 py-2 rounded-md whitespace-nowrap ${
+              filterStatus === "ALL"
+                ? "bg-indigo-600 text-white"
+                : "bg-gray-100 hover:bg-gray-200 text-gray-800"
+            }`}
+            onClick={() => setFilterStatus("ALL")}
+          >
+            All Opportunities
+          </button>
+          <button
+            className={`px-4 py-2 rounded-md whitespace-nowrap ${
+              filterStatus === "UNDER_REVIEW"
+                ? "bg-yellow-500 text-white"
+                : "bg-gray-100 hover:bg-gray-200 text-gray-800"
+            }`}
+            onClick={() => setFilterStatus("UNDER_REVIEW")}
+          >
+            Under Review
+          </button>
+          <button
+            className={`px-4 py-2 rounded-md whitespace-nowrap ${
+              filterStatus === "NEGOTIATING"
+                ? "bg-blue-500 text-white"
+                : "bg-gray-100 hover:bg-gray-200 text-gray-800"
+            }`}
+            onClick={() => setFilterStatus("NEGOTIATING")}
+          >
+            Negotiating
+          </button>
+          <button
+            className={`px-4 py-2 rounded-md whitespace-nowrap ${
+              filterStatus === "FUNDED"
+                ? "bg-green-500 text-white"
+                : "bg-gray-100 hover:bg-gray-200 text-gray-800"
+            }`}
+            onClick={() => setFilterStatus("FUNDED")}
+          >
+            Funded
+          </button>
+        </div>
+
+        {/* Search and Sort Controls */}
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <div className="relative flex-grow">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -269,7 +438,7 @@ export default function InvestorDashboard() {
 
         {/* Proposals List */}
         {filteredProposals.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-32 text-gray-500 bg-white rounded-lg shadow">
+          <div className="flex flex-col items-center justify-center py-16 text-gray-500 bg-white rounded-lg shadow">
             <Search size={48} className="mb-4" />
             <p className="text-lg font-medium">
               No matching investment opportunities
@@ -282,9 +451,6 @@ export default function InvestorDashboard() {
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="divide-y divide-gray-200">
               {filteredProposals.map((proposal) => {
-                {
-                  console.log(proposal);
-                }
                 return (
                   <div
                     key={proposal.id}
@@ -319,7 +485,9 @@ export default function InvestorDashboard() {
                             : proposal.description}
                         </p>
                         <div className="mt-2 flex items-center text-sm text-gray-500">
-                          By {proposal?.founder.name} • Created on{" "}
+                          <User size={14} className="mr-1" />{" "}
+                          {proposal?.founder.name} •
+                          <Clock size={14} className="ml-2 mr-1" />{" "}
                           {proposal.createdAt}
                         </div>
                       </div>
@@ -345,7 +513,6 @@ export default function InvestorDashboard() {
                                     proposal.fundingGoal) *
                                     100
                                 );
-
                                 bars.push(
                                   <div
                                     key={investor.id}
@@ -377,16 +544,33 @@ export default function InvestorDashboard() {
                           </p>
                         )}
 
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openInvestModal(proposal);
-                          }}
-                          className="mt-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
-                          // disabled={proposal.status !== "APPROVED"}
-                        >
-                          Invest Now
-                        </button>
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openInvestModal(proposal);
+                            }}
+                            className={`px-4 py-2 ${
+                              proposal.status === "FUNDED"
+                                ? "bg-gray-300 cursor-not-allowed"
+                                : "bg-indigo-600 hover:bg-indigo-700"
+                            } text-white rounded-md transition-colors`}
+                            disabled={proposal.status === "FUNDED"}
+                          >
+                            Invest Now
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(
+                                `/investor/proposal-performance/${proposal.id}`
+                              );
+                            }}
+                            className="p-2 bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 transition-colors"
+                          >
+                            <BarChart2 size={18} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -457,7 +641,13 @@ export default function InvestorDashboard() {
               </div>
             </div>
 
-            <form onSubmit={handleInvest} className="space-y-4">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleRazorpayPayment();
+              }}
+              className="space-y-4"
+            >
               <div className="space-y-1.5">
                 <label
                   htmlFor="investmentAmount"
@@ -491,54 +681,51 @@ export default function InvestorDashboard() {
               </div>
 
               <div className="bg-gray-50 p-4 rounded-md">
-                <h4 className="text-sm font-medium text-gray-700 mb-2">
-                  Investment Summary
-                </h4>
-                <div className="flex justify-between text-sm">
-                  <span>Investment Amount</span>
-                  <span>
-                    $
-                    {investmentAmount
-                      ? parseFloat(investmentAmount).toLocaleString()
-                      : "0"}
-                  </span>
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">
+                    Investment Summary
+                  </h4>
+                  <div className="text-sm">
+                    <div className="flex justify-between">
+                      <span>Investment Amount</span>
+                      <span className="text-right">
+                        $
+                        {investmentAmount
+                          ? parseFloat(investmentAmount).toLocaleString()
+                          : "0.00"}
+                      </span>
+                    </div>
+                    <hr className="my-2 border-gray-200" />
+                    <div className="flex justify-between font-medium">
+                      <span>Total</span>
+                      <span className="text-right">
+                        $
+                        {investmentAmount
+                          ? (
+                              parseFloat(investmentAmount) * 1.0
+                            ).toLocaleString()
+                          : "0.00"}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between text-sm mt-1">
-                  <span>Platform Fee (3%)</span>
-                  <span>
-                    $
-                    {investmentAmount
-                      ? (parseFloat(investmentAmount) * 0.03).toLocaleString()
-                      : "0"}
-                  </span>
-                </div>
-                <hr className="my-2 border-gray-200" />
-                <div className="flex justify-between font-medium">
-                  <span>Total</span>
-                  <span>
-                    $
-                    {investmentAmount
-                      ? (parseFloat(investmentAmount) * 1.03).toLocaleString()
-                      : "0"}
-                  </span>
-                </div>
-              </div>
 
-              {/* Actions */}
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-                >
-                  Confirm Investment
-                </button>
+                {/* Actions */}
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                  >
+                    Confirm Investment
+                  </button>
+                </div>
               </div>
             </form>
           </div>
