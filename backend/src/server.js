@@ -6,6 +6,9 @@ const prisma = require("./config/prisma");
 const authRoutes = require("./routes/auth");
 const proposalRoutes = require("./routes/proposals");
 const notificationRoutes = require("./routes/notificationRoutes");
+const investorDashboard = require("./routes/investorDashboard");
+const razorpayRoutes = require("./routes/razorpay");
+const adminRoutes = require("./routes/adminRoutes");
 const setupChat = require("./sockets/chat");
 require("dotenv").config();
 
@@ -32,6 +35,9 @@ app.use((req, res, next) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/proposals", proposalRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/investor", investorDashboard);
+app.use("/api/razorpay", razorpayRoutes);
+app.use("/api/admin", adminRoutes);
 
 setupChat(io);
 

@@ -11,6 +11,8 @@ import InvestorProposalDetail from "./pages/InvestorProposalDetail";
 import { AuthProvider } from "./context/AuthProvider";
 import { Toaster } from "sonner";
 import { SocketProvider } from "./context/SocketRef";
+import InvestorDashboardAnalytics from "./pages/InvestorAnalytics";
+import AdminDashboard from "./pages/AdminDashboard";
 
 function App() {
   return (
@@ -20,9 +22,11 @@ function App() {
           <Router>
             <Routes>
               <Route path="/" element={<HomePage />} />
-              <Route path="/auth" element={<AuthPage />} />
+              <Route path="/auth/:mode/:role" element={<AuthPage />} />
+              <Route path="/auth/:mode" element={<AuthPage />} />
               <Route path="/proposal/new" element={<NewProposalPage />} />
               <Route path="/founder/dashboard" element={<FounderDashboard />} />
+              <Route path="/admin/dashboard" element={<AdminDashboard />} />
               <Route
                 path="/investor/dashboard"
                 element={<InvestorDashboard />}
@@ -31,6 +35,10 @@ function App() {
               <Route
                 path="/investor/proposal/:id"
                 element={<InvestorProposalDetail />}
+              />
+              <Route
+                path="/investor/analytics"
+                element={<InvestorDashboardAnalytics />}
               />
             </Routes>
           </Router>

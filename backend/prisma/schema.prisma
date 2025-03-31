@@ -21,7 +21,7 @@ model User {
   acceptedInvestments AcceptedInvestor[] @relation("InvestorUser")
   totalInvestment    Float     @default(0)
   activeInvestments  Int       @default(0)
-    notifications Notification[] 
+  notifications Notification[] 
 }
 
 
@@ -35,11 +35,13 @@ model Proposal {
   fundingGoal       Float
   currentFunding    Float              @default(0) 
   status            Status             @default(UNDER_REVIEW)
+  category          String          
   createdAt         DateTime           @default(now())
   messages          Message[]
   comments          Comment[]
   acceptedInvestors AcceptedInvestor[] @relation("InvestorProposal")
 }
+
 
 model AcceptedInvestor {
   id          Int       @id @default(autoincrement())
@@ -68,13 +70,17 @@ model Message {
 
 
 model Comment {
-  id         Int      @id @default(autoincrement())
+  id         Int       @id @default(autoincrement())
   proposalId Int
   userId     Int
   content    String
-  createdAt  DateTime @default(now())
-  proposal   Proposal @relation(fields: [proposalId], references: [id])
-  user       User     @relation(fields: [userId], references: [id])
+  createdAt  DateTime  @default(now())
+  proposal   Proposal  @relation(fields: [proposalId], references: [id])
+  user       User      @relation(fields: [userId], references: [id])
+  parentId   Int?      
+  parent     Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies    Comment[] @relation("CommentReplies")
+  likes      Int       @default(0) 
 }
 
 model Notification {

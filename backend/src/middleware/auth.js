@@ -1,29 +1,47 @@
 const jwt = require("jsonwebtoken");
-const { message } = require("../config/prisma");
+const client = require("../config/redis-config");
 
-const authenticateToken = (req, res, next) => {
-  const token = req.headers["authorization"]?.split(" ")[1];
-  if (!token) {
-    res.status(401).json({ message: "No token was provided" });
+const authenticateToken = async (req, res, next) => {
+  const authHeader = req.headers["authorization"];
+  if (!authHeader) {
+    return res.status(401).json({ message: "Authorization header is missing" });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) {
-      return res.status(403).json({ message: "Invalid token was provided" });
+  const token = authHeader.split(" ")[1];
+  if (!token) {
+    return res
+      .status(401)
+      .json({ message: "Token is missing from Authorization header" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const storedToken = await client.get(`token:${decoded.id}`);
+    if (!storedToken || storedToken !== token) {
+      return res.status(401).json({ message: "Invalid or expired token." });
     }
-    console.log(user);
-    req.user = user;
+
+    req.user = decoded;
     next();
-  });
+  } catch (error) {
+    console.error("Token verification error:", error);
+    return res.status(401).json({ message: "Invalid token." });
+  }
 };
 
-const restrictTo =
-  (...roles) =>
-  (req, res, next) => {
+const restrictTo = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({ message: "Permission denied" });
     }
+
     next();
   };
+};
 
-module.exports = { restrictTo, authenticateToken };
+module.exports = { authenticateToken, restrictTo };
