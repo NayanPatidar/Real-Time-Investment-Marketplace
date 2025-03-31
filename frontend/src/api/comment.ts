@@ -1,17 +1,20 @@
 import instance from "./axios";
 
-export interface Author {
+interface Author {
   id: number;
-  email: string;
-  role: string;
   name: string;
+  role: string;
+  avatar?: string;
 }
 
-export interface Comment {
+interface Comment {
   id: number;
   content: string;
-  createdAt: string;
+  timestamp: string; // or Date if you're using Date objects
   user: Author;
+  likes: number;
+  parentId: number | null;
+  replies?: Comment[];
 }
 
 export const getProposalComments = async (
@@ -23,10 +26,12 @@ export const getProposalComments = async (
 
 export const postProposalComment = async (
   proposalId: string | number,
-  content: string
+  content: string,
+  parentId?: number
 ): Promise<Comment> => {
   const res = await instance.post(`/proposals/comments/${proposalId}`, {
     content,
+    parentId,
   });
   return res.data;
 };

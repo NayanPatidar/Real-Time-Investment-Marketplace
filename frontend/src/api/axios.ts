@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const instance = axios.create({
-  baseURL: "http://localhost:8080/api",
+  baseURL: "https://real-time-investment-marketplace-808382022360.us-central1.run.app/api",
   withCredentials: true,
 });
 
