@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Mic, Send } from "lucide-react";
+import { Send } from "lucide-react";
 import {
-  initializeSocket,
   joinProposalChat,
   sendMessage,
   notifyTyping,
@@ -14,7 +13,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@radix-ui/react-avatar";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
 import { useSocket } from "@/context/SocketRef";
 
 interface TypingPayload {
@@ -155,16 +153,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     );
 
     // Read receipts
-    socketRef.current.on(
-      "messageRead",
-      ({ messageId, receiverId }: MessageReadPayload) => {
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === messageId ? { ...msg, read: true } : msg
-          )
-        );
-      }
-    );
+    socketRef.current.on("messageRead", ({ messageId }: MessageReadPayload) => {
+      setMessages((prev) =>
+        prev.map((msg) => (msg.id === messageId ? { ...msg, read: true } : msg))
+      );
+    });
   };
 
   const handleSendMessage = () => {
@@ -223,13 +216,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         {/* Chat messages container */}
         <div
           className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[350px] max-h-[60vh] bg-gradient-to-b from-gray-50 to-white"
-          onScroll={(e) => {
-            // Optional: Track when user manually scrolls up to temporarily disable auto-scroll
-            const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-            const isScrolledToBottom =
-              scrollHeight - scrollTop - clientHeight < 30;
-            // You could set a state variable here if you want to implement a "new messages" button
-          }}
+          // onScroll={(e) => {
+          //   // Optional: Track when user manually scrolls up to temporarily disable auto-scroll
+          //   const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+          //   const isScrolledToBottom =
+          //     scrollHeight - scrollTop - clientHeight < 30;
+          //   // You could set a state variable here if you want to implement a "new messages" button
+          // }}
         >
           {messages.map((message) => (
             <div

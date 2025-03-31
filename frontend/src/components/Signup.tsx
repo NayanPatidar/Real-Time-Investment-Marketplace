@@ -3,12 +3,16 @@ import { Mail, Lock, UserCircle } from "lucide-react";
 import { signup } from "@/api/auth";
 import { useNavigate } from "react-router-dom";
 
-export default function SignUp() {
+interface SignUpProps {
+  defaultRole?: string;
+}
+
+const SignUp: React.FC<SignUpProps> = ({ defaultRole = "FOUNDER" }) => {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
     name: "",
-    role: "FOUNDER",
+    role: defaultRole,
   });
   const navigate = useNavigate();
 
@@ -19,7 +23,7 @@ export default function SignUp() {
         formData.email,
         formData.password,
         formData.role,
-        formData.name,
+        formData.name
       );
       localStorage.setItem("token", token);
       navigate("/");
@@ -148,4 +152,6 @@ export default function SignUp() {
       </button>
     </form>
   );
-}
+};
+
+export default SignUp;

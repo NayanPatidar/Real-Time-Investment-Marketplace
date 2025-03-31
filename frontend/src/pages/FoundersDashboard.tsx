@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from "react";
-import { PlusCircle, FileText, LogOut } from "lucide-react";
+import { PlusCircle, FileText, LogOut, TrendingUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createProposal, getMyProposals } from "@/api/proposal";
 import { logout } from "@/utils/auth";
+import { logoutFunc } from "@/api/auth";
+import NotificationDropdown from "@/components/NotificationDropdown";
 
 interface Proposal {
   id: string;
   title: string;
   description: string;
   fundingGoal: number;
-  status: "PENDING" | "APPROVED" | "REJECTED";
+  status: "UNDER_REVIEW" | "FUNDED" | "NEGOTIATING";
   createdAt: string;
 }
 
@@ -22,6 +24,7 @@ export default function FounderDashboard() {
     title: "",
     description: "",
     fundingGoal: "",
+    category: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -32,12 +35,18 @@ export default function FounderDashboard() {
         title: newProposal.title,
         description: newProposal.description,
         fundingGoal: parseFloat(newProposal.fundingGoal),
+        category: newProposal.category,
       };
 
       const createdProposal = await createProposal(payload);
 
       setProposals([createdProposal, ...proposals]);
-      setNewProposal({ title: "", description: "", fundingGoal: "" });
+      setNewProposal({
+        title: "",
+        description: "",
+        fundingGoal: "",
+        category: "",
+      });
       setIsModalOpen(false);
     } catch (error) {
       console.error("Failed to create proposal:", error);
@@ -52,15 +61,22 @@ export default function FounderDashboard() {
         setProposals(data);
       } catch (error) {
         console.error("Failed to fetch proposals:", error);
-        alert("Unable to load proposals.");
       }
     };
 
     fetchMyProposals();
   }, []);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    try {
+      const response = await logoutFunc();
+      if (response) {
+        logout();
+      }
+    } catch (error) {
+      console.error("Logout failed:", error);
+      alert("Failed to log out. Please try again.");
+    }
   };
 
   return (
@@ -69,16 +85,25 @@ export default function FounderDashboard() {
       <header className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2 font-bold text-xl text-indigo-700">
+              <TrendingUp className="h-5 w-5 text-blue-500" />
+              <a href="/" className="hover:opacity-80 transition-opacity">
+                InvestConnect
+              </a>
+            </div>
             <h1 className="text-2xl font-bold text-gray-900">
               Founder Dashboard
             </h1>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
-            >
-              <LogOut size={18} />
-              Logout
-            </button>
+            <div className="flex items-center gap-4">
+              <NotificationDropdown />
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+              >
+                <LogOut size={18} />
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -132,11 +157,13 @@ export default function FounderDashboard() {
                         </span>
                         <span
                           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            proposal.status === "APPROVED"
+                            proposal.status === "UNDER_REVIEW"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : proposal.status === "NEGOTIATING"
+                              ? "bg-blue-100 text-blue-800"
+                              : proposal.status === "FUNDED"
                               ? "bg-green-100 text-green-800"
-                              : proposal.status === "REJECTED"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-yellow-100 text-yellow-800"
+                              : "bg-red-100 text-red-800"
                           }`}
                         >
                           {proposal.status}
@@ -240,6 +267,33 @@ export default function FounderDashboard() {
                 >
                   Create Proposal
                 </button>
+              </div>
+              {/* Category */}
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="category"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Category
+                </label>
+                <select
+                  id="category"
+                  required
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2"
+                  value={newProposal.category}
+                  onChange={(e) =>
+                    setNewProposal({ ...newProposal, category: e.target.value })
+                  }
+                >
+                  <option value="">Select a category</option>
+                  <option value="Technology">Technology</option>
+                  <option value="Healthcare">Healthcare</option>
+                  <option value="Finance">Finance</option>
+                  <option value="Education">Education</option>
+                  <option value="Clothing">Clothing</option>
+                  <option value="Energy">Energy</option>
+                  <option value="Other">Other</option>
+                </select>
               </div>
             </form>
           </div>

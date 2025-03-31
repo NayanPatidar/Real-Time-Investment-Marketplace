@@ -14,8 +14,8 @@ export default function SignIn() {
     e.preventDefault();
     try {
       const { token } = await login(formData.email, formData.password);
-      localStorage.setItem("token", token); // ✅ Store JWT
-      navigate("/"); // ✅ Redirect after login
+      localStorage.setItem("token", token); 
+      navigate("/"); 
     } catch (err) {
       console.error("Login failed:", err);
       alert("Invalid credentials");
